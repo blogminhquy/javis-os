@@ -199,7 +199,7 @@ check("release calls the image build on the newest main",
 check("image build no longer runs on its own push (it would carry the old VERSION)",
       "workflow_call:" in dp and "\n  push:" not in dp and "ref: ${{ inputs.ref || github.sha }}" in dp)
 check("CI gates PRs on the fragment and the `test` check waits for it",
-      "release.py pr-check" in ci and "needs: [python, chung, changelog]" in ci)
+      "release.py pr-check" in ci and "needs: [python, chung, changelog" in ci)   # more jobs may follow
 for name, text in (("release.yml", wf), ("release.py", (ROOT / "tools/release.py").read_text(encoding="utf-8"))):
     check(f"{name}: no em dash / en dash", "\u2014" not in text and "\u2013" not in text)
 

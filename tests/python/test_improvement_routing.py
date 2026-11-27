@@ -1,4 +1,4 @@
-"""M4 routing surface: description-only patches and the deterministic lazy-router evaluator."""
+"""M4 routing surface: description-only patches and the evaluator of the main chat's skill routing (skill_finder)."""
 from _paths import ROOT, SERVER  # noqa: F401
 
 import unittest
@@ -39,7 +39,7 @@ class PatchDescriptionTests(unittest.TestCase):
         for name, raw in cases.items():
             with self.subTest(name=name), self.assertRaises(ValueError):
                 R.patch_description(raw, "Doi soat bang so lieu")
-        for bad in ("", "x" * 151, "Kích hoạt khi người dùng muốn báo cáo"):
+        for bad in ("", "x" * 1025, "Kích hoạt khi người dùng muốn báo cáo"):   # the cap is 1,024 since 2026-11-27
             with self.subTest(bad=bad[:20]), self.assertRaises(ValueError):
                 R.patch_description(SKILL, bad)
 
@@ -49,6 +49,16 @@ class RoutingEvaluatorTests(unittest.TestCase):
         self.assertEqual(R.route("viet email cho khach hang", manifests())["slug"], "viet-email")
         self.assertEqual(R.route("thoi tiet hom nay the nao", manifests())["action"], "none")
 
+    def test_route_is_the_main_chat_decision_of_skill_finder(self):
+        import skill_finder
+        for query in ("viet email cho khach hang", "doi soat cong no khach hang", "thoi tiet hom nay"):
+            expected = skill_finder.decision(skill_finder.choose(skill_finder.index_from_manifests(manifests()), query))
+            self.assertEqual(R.route(query, manifests()), expected)
+        # Description-only: a body or a learned request never enters the evaluator's model.
+        self.assertEqual(R.route("viet email cho khach hang", [{**m, "body": "x"} for m in manifests()]),
+                         R.route("viet email cho khach hang", manifests()))
+        self.assertEqual(R.route("viet email cho khach hang", manifests())["action"], "load")
+
     def test_labels_cover_every_outcome(self):
         load = {"action": "load", "slug": "a"}
         self.assertEqual(R.label({"expected": "a"}, load), "correct")
@@ -57,6 +67,13 @@ class RoutingEvaluatorTests(unittest.TestCase):
         self.assertEqual(R.label({"expected": "a"}, {"action": "none", "slug": ""}), "missed")
         self.assertEqual(R.label({"expected": ""}, {"action": "none", "slug": ""}), "correct")
         self.assertEqual(R.label({"expected": "a"}, {"action": "fallback", "slug": ""}), "deferred")
+        offered = {"action": "suggest", "slug": "b", "suggested": ["b", "a"]}
+        self.assertEqual(R.label({"expected": "b"}, offered), "correct")
+        self.assertEqual(R.label({"expected": "a"}, offered), "deferred")
+        self.assertEqual(R.label({"expected": "c"}, offered), "wrong_skill")
+        self.assertEqual(R.label({"expected": ""}, offered), "unnecessary")
+        preloaded = {"action": "load", "slug": "b", "suggested": ["b", "a"]}
+        self.assertEqual(R.label({"expected": "a"}, preloaded), "wrong_skill")
 
     def test_better_description_wins_positive_cases_without_regressions(self):
         cases = [{"query": q, "expected": "bao-cao", "kind": "positive"} for q in (

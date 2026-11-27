@@ -1,7 +1,8 @@
 """Read-only Google Calendar events for the Tasks page, tab "Mine" (0.427.0). Spec: docs/dev/2026-10-nhiem-vu-spec.md 6.
 
 The events come from a calendar MCP the owner connected on the Connections page: the Google Calendar connector
-(`google-calendar`), Google Workspace (`google-workspace`), or a custom connection whose name says calendar. Javis never
+(`google-calendar`), Google Workspace (`google-workspace-official`, or the older `google-workspace`), or a custom
+connection whose name says calendar. Javis never
 writes to the calendar from here; the page shows the events next to the owner's appointments and links to Google to edit.
 
 Tool names and argument names differ per server, so the list tool and its time-window arguments are found from the
@@ -14,8 +15,9 @@ import json
 import re
 from typing import Optional
 
-CONNECTORS = ("google-calendar", "google-workspace")
-TOOL_NAMES = ("list_events", "get_events", "events_list", "list_calendar_events", "googlecalendar_events_list",
+CONNECTORS = ("google-calendar", "google-workspace", "google-workspace-official")
+TOOL_NAMES = ("list_events", "calendar_list_events", "get_events", "events_list", "list_calendar_events",
+              "googlecalendar_events_list",
               "googlecalendar_find_event", "search_events")
 _START_KEYS = ("timeMin", "time_min", "start_time", "startTime", "time_start", "start", "from", "min_time")
 _END_KEYS = ("timeMax", "time_max", "end_time", "endTime", "time_end", "end", "to", "max_time")

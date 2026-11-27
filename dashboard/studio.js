@@ -1041,10 +1041,10 @@
   const _skState = { cat: "ALL", q: "", skills: [], status: "all", sort: "used", page: 0,
                      open: "", merged: [], bodies: Object.create(null) };
 
-  // Trần mô tả của bộ định tuyến skill: server/skill_router.SKILL_DESC_MAX. Vượt trần thì router
-  // cắt im lặng phần đuôi và POST /skills từ chối lưu, nên form phải đếm trước cho người viết.
-  // tests/python/test_trang_ky_nang.py ghim hai con số này bằng nhau.
-  const SKILL_DESC_MAX = 150;
+  // Longest skill description: server/skill_router.SKILL_DESC_MAX (1,024, the Agent Skills standard, since
+  // 2026-11-27). Javis finds skills by their whole description; past the cap the tail is ignored and POST /skills
+  // refuses to save, so the form counts for the writer. tests/python/test_trang_ky_nang.py pins both numbers equal.
+  const SKILL_DESC_MAX = 1024;
   const _doDai = (s) => [...String(s || "").trim()].length;   // đếm như len() của Python
 
   // CSS tiêm một lần cho CẢ BA trang Studio: phần `.gr*` là khung nhóm dùng chung (cột nhóm +

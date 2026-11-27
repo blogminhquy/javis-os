@@ -193,7 +193,9 @@ def test_compiler_budgets_phase8_items_and_keeps_source_map(tmp_path):
 @pytest.mark.parametrize("feature,expected_flags", [
     ("conversation_state_canary", (True, True)),
     ("memory_canary", (False, True)),
-    ("lazy_skill_canary", (True, False)),
+    # 2026-11-27: the skill router stays in the base even when the skill source applies. It only names the skills
+    # now (stable, cheap); the source preloads the body of a skill it is sure of, on top.
+    ("lazy_skill_canary", (True, True)),
 ])
 def test_three_phase8_canaries_are_independent(tmp_path, feature, expected_flags):
     brain = tmp_path / "brain"

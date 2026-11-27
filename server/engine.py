@@ -1958,7 +1958,9 @@ def _note_question(messages) -> None:
             c = " ".join(str(b.get("text") or "") for b in c
                          if isinstance(b, dict) and b.get("type") in ("text", "input_text"))
         if isinstance(c, str) and c.strip():
-            section_select.QUESTION.set(c[-2000:])
+            # The turn's skill suggestions may open the message (skill_finder, 2026-11-27): the request is the rest.
+            import skill_finder
+            section_select.QUESTION.set(skill_finder.strip_suggestions(c)[-2000:])
         return
 
 

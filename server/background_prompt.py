@@ -35,7 +35,7 @@ CLAUDE_MD_PATH = Path(__file__).resolve().parent.parent / "CLAUDE.md"
 # sha256 of the CLAUDE.md this contract was checked against. Changing CLAUDE.md fails
 # tests/python/test_background_prompt.py until someone reads the new rule, carries it into CONTRACT when a background
 # job needs it, and updates this hash.
-REVIEWED_CLAUDE_MD_SHA256 = "bb376884257c1a47ec25156152ecff631a84b61ddcc0a21683c97c153b7fc1b9"
+REVIEWED_CLAUDE_MD_SHA256 = "6619b5e741779a5d4c8c04dc6d3b8baa79da4d44d8af06d88efe8ad51caae5b8"
 DEFAULT_BASIS_POINTS = 1000   # 10% of background jobs
 SALT = "background-prompt-v1"
 
@@ -102,7 +102,7 @@ step you came up with is not an order: write it in the result. Pick the smallest
 - Before creating, check for duplicates in `Javis/index.md`; update the old one instead of spawning a copy.
 - Load the `javis-builder` skill for the templates; do not write them from memory. Paths are FLAT at the brain root: \
 `agents/<slug>.md`, `workflows/<slug>.md`, `skills/<slug>/SKILL.md`; never `Javis/agents|workflows` (the app never \
-sees them there). Loops: `Javis/loops/<slug>.md`. `description` at most 150 characters; never leave `group` or \
+sees them there). Loops: `Javis/loops/<slug>.md`. `description` at most 1,024 characters; never leave `group` or \
 `tags` empty; slug lowercase ASCII with hyphens. A workflow needing a missing agent: create the agent first.
 - Loops and reminders: prefer `javis_schedule` op=create. Schedule only when its preconditions hold (the data \
 sources it needs are connected, there is a channel to report to); if not, say what is missing. A new loop gets \

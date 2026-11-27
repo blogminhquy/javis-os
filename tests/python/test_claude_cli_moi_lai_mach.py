@@ -36,7 +36,8 @@ src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
 i0 = src.find("PROVIDER anthropic-cli")
 check("tìm thấy nhánh anthropic-cli", i0 > 0)
 # The region ends where the lane defines its engine call, right after the seeding code. It used to be a fixed 6000
-# characters, which left 91 to spare and broke on any line added near the top of the lane (2026-11-27).
+# characters, then 7000 (skill suggestions added three lines), and broke each time a line was added near the top of
+# the lane (2026-11-27).
 i1 = src.find("async def _consume_claude", i0)
 check("tìm thấy cuối vùng mồi lại (_consume_claude)", i1 > i0)
 vung = src[i0:i1]

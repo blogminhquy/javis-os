@@ -241,6 +241,9 @@ def public_catalog():
             "cred_dir": bool(c.get("cred_dir")),
             # Nguồn: connector do GÓI cấp không bao giờ được trông y hệt hàng chính chủ.
             "pack": c.get("_pack", ""), "pack_name": c.get("_pack_name", ""),
+            # A card another card replaces (2026-11-27, the Google cards -> google-workspace-official): the Connections
+            # page stops offering it for new connections; connections already made still show and keep running.
+            "replaced_by": str(c.get("replaced_by") or ""),
         })
     import catalog_i18n   # lazy: catalog_i18n -> localefmt -> config, tránh vòng import
     return catalog_i18n.phu(out)

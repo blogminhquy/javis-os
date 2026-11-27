@@ -413,6 +413,9 @@ class LearnDeps:
     # overlay (its additions then wait for the owner instead of going live), None otherwise. Raises ValueError
     # when the host checks refuse the text.
     stage_agent_procedure: Optional[Callable] = None
+    # pick_agent_model(meta, body) -> {model, model_provider[, reasoning]} for a NEW learned assistant (owner,
+    # 27/11/2026: a new assistant gets a model that fits, from the cards the machine runs). None or {} = "Default".
+    pick_agent_model: Optional[Callable] = None
     # side_work_paused() -> a short reason when work Javis starts on its own must wait (the plan's 5-hour
     # allowance is nearly used up), "" otherwise. None = never paused (tests with minimal deps).
     side_work_paused: Optional[Callable] = None
@@ -1147,9 +1150,9 @@ class LearnFeature:
             "thành claim chắc nịch (vd 'đặt mục tiêu 13.500' ≠ 'có 13.500').\n"
             "  3. MÂU THUẪN: nếu chọi trang cũ → set conflict_with, KHÔNG ghi đè (Python sẽ ghi ## Mâu thuẫn).\n\n"
             + (f"CHUẨN VIẾT SKILL (bắt buộc, Python sẽ CHẶN nếu vi phạm):\n"
-               f"  1. description TỐI ĐA {skill_router.SKILL_DESC_MAX} ký tự. Router cắt "
-               f"đúng ở đó nên phần dư MẤT IM LẶNG và skill không route được. VIẾT XONG HÃY "
-               "ĐẾM, đừng ước lượng.\n"
+               f"  1. description TỐI ĐA {skill_router.SKILL_DESC_MAX} ký tự: nói skill làm gì và khi nào "
+               "dùng, bằng chữ người dùng hay nói (Javis tìm skill theo toàn bộ mô tả). Phần vượt trần bị "
+               "bỏ qua khi tìm.\n"
                "  2. description nêu THẲNG năng lực. KHÔNG mở đầu bằng 'Kích hoạt khi...', "
                "'Sử dụng skill này khi...' - mọi skill đều mở như vậy nên nó đốt ngân sách mà "
                "không phân biệt gì. Tốt: 'Tóm tắt biên bản họp thành danh sách việc cần làm.'\n"
@@ -1674,6 +1677,11 @@ class LearnFeature:
                                    "role": role, "group": _nhom(a), "skills": sk_ok, "model": "",
                                    "origin": "javis-learned", "updated": today}
                         new_body = body
+                        if self.deps.pick_agent_model is not None:
+                            try:
+                                fm_data.update(self.deps.pick_agent_model(dict(fm_data), new_body) or {})
+                            except Exception as e:  # noqa: BLE001 - the assistant is written either way
+                                print(f"[learn agent model] {slug}: {type(e).__name__}: {e}", file=sys.stderr)
                     fp = old_fp if (upd and old_fp) else (ag_dir / f"{slug}.md")
                     self.deps.atomic_write_text(fp, f"---\n{dump_fm(fm_data)}\n---\n{new_body}\n")
                     written_paths.append(str(fp.relative_to(root)).replace("\\", "/"))

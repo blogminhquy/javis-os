@@ -27,10 +27,10 @@ def check(name, cond):
         _fails.append(name)
 
 
-# ---- hằng số ----
-check("SKILL_DESC_MAX = 150", getattr(skill_router, "SKILL_DESC_MAX", None) == 150)
-check("SKILL_LIST_MAX = 40", getattr(skill_router, "SKILL_LIST_MAX", None) == 40)
-check("SKILL_LIST_CHAR_BUDGET = 4000",
+# ---- constants (2026-11-27: 1,024 is the Agent Skills standard; 150 is only the short form of the mirror) ----
+check("SKILL_DESC_MAX = 1024", getattr(skill_router, "SKILL_DESC_MAX", None) == 1024)
+check("SKILL_SUMMARY_MAX = 150", getattr(skill_router, "SKILL_SUMMARY_MAX", None) == 150)
+check("SKILL_LIST_CHAR_BUDGET = 4000 (the names list budget)",
       getattr(skill_router, "SKILL_LIST_CHAR_BUDGET", None) == 4000)
 
 # ---- validate_description ----
@@ -39,12 +39,13 @@ check("description hợp lệ -> None", v("Chuyển HTML sang file Webcake .pke.
 check("description rỗng -> None (body-fallback lo)", v("") is None)
 check("description None -> None", v(None) is None)
 
-long_desc = "x" * 151
+long_desc = "x" * 1025
 r = v(long_desc)
-check("description 151 ký tự -> bị từ chối", isinstance(r, str))
-check("lý do từ chối có nêu số ký tự thật", r is not None and "151" in r)
-check("lý do từ chối có nêu trần", r is not None and "150" in r)
-check("description đúng 150 ký tự -> lọt", v("x" * 150) is None)
+check("description 1025 ký tự -> bị từ chối", isinstance(r, str))
+check("lý do từ chối có nêu số ký tự thật", r is not None and "1025" in r)
+check("lý do từ chối có nêu trần", r is not None and "1024" in r)
+check("description đúng 1024 ký tự -> lọt", v("x" * 1024) is None)
+check("a 300-character description (the old cap refused it) is accepted", v("Viết email chăm sóc. " * 14) is None)
 
 check("bắt boilerplate 'Kích hoạt khi'",
       isinstance(v("Kích hoạt khi người dùng muốn tạo ảnh"), str))
@@ -53,7 +54,7 @@ check("bắt boilerplate 'Sử dụng skill này khi'",
 check("KHÔNG bắt 'Dùng khi cần' (mở đầu hợp lệ, ngắn)",
       v("Dùng khi cần tạo ảnh minh hoạ phong cách flat 2D") is None)
 
-# ---- _meta_of fallback dùng chung trần ----
+# ---- _meta_of fallback: the first body line, cut to the short form ----
 tmp = Path(tempfile.mkdtemp(prefix="javis-capsbrain-"))
 d = tmp / "skills" / "khong-co-desc"
 d.mkdir(parents=True)
@@ -62,10 +63,10 @@ d.mkdir(parents=True)
 metas = skill_router.list_enabled_meta(tmp)
 got = next((m for m in metas if m["slug"] == "khong-co-desc"), None)
 check("_meta_of fallback trả về skill", got is not None)
-check("fallback cắt theo SKILL_DESC_MAX chứ không phải 140",
-      got is not None and len(got["description"]) == skill_router.SKILL_DESC_MAX)
+check("fallback is cut at SKILL_SUMMARY_MAX",
+      got is not None and len(got["description"]) == skill_router.SKILL_SUMMARY_MAX)
 
-# ---- không còn hằng số cắt nào nằm rải rác (chống mọc lại 'thước thứ hai') ----
+# ---- no description is cut where the router is drawn (no second ruler grows back) ----
 _SRC = SERVER
 
 
@@ -79,18 +80,16 @@ def _region(path, start_marker, end_marker):
 
 hub = _region("mcp_hub.py", "metas = skill_router.list_enabled_meta(vault_root",
               'add("javis_use_skill"')
-check("mcp_hub không còn literal [:60]", "[:60]" not in hub)
-check("mcp_hub không còn literal 20", "20" not in hub)
-check("mcp_hub dùng SKILL_DESC_MAX", "SKILL_DESC_MAX" in hub)
-check("mcp_hub cắt theo ngân sách", "cat_theo_ngan_sach" in hub)
-check("mcp_hub xếp theo ưu tiên trước khi cắt", "xep_theo_uu_tien" in hub)
+check("mcp_hub: javis_use_skill names skills, it does not carry descriptions", "description" not in hub)
+check("mcp_hub: the same fixed order as the system prompt router", "skill_router_order" in hub)
+check("mcp_hub: a budget in characters", "SKILL_TOOL_NAMES_CHARS" in hub)
+check("mcp_hub: no longer cut by the old list helpers",
+      "cat_theo_ngan_sach" not in hub and "xep_theo_uu_tien" not in hub)
 
 blk = _region("main.py", "def _skill_router_block", "@app.get(\"/javis/index\")")
-check("main không còn literal [:100]", "[:100]" not in blk)
-check("main không còn literal 15", "15" not in blk)
-check("main dùng SKILL_DESC_MAX", "SKILL_DESC_MAX" in blk)
-check("main cắt theo ngân sách", "cat_theo_ngan_sach" in blk)
-check("main xếp theo ưu tiên trước khi cắt", "xep_theo_uu_tien" in blk)
+check("main: router drawn by main_prompt_rendering", "render_skill_router" in blk)
+check("main: router budget comes from skill_router", "SKILL_LIST_CHAR_BUDGET" in blk)
+check("main: no usage order (it would change the cached prompt)", "xep_theo_uu_tien" not in blk)
 
 # ---- LINT: mọi skill HỆ THỐNG phải lọt trần + sạch boilerplate ----
 # Đây là rào chặn tái phát: bug cắt cụt description không được quay lại qua skill ship kèm app.

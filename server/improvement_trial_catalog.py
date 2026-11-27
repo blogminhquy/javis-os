@@ -212,7 +212,7 @@ def _scan(root, language):
                 body = body.strip()
                 caps["skills"].append({"slug": slug, "name": skill_router.theo_ngon_ngu(meta, "name", language) or slug,
                     "description": skill_router.theo_ngon_ngu(meta, "description", language) or (
-                        body.split("\n")[0][:skill_router.SKILL_DESC_MAX] if body else ""),
+                        body.split("\n")[0][:skill_router.SKILL_SUMMARY_MAX] if body else ""),
                     "group": meta.get("group") or "Chung", "enabled": enabled})
 
     state_text, record = read("Javis/loop-state.json", optional=True)
@@ -258,7 +258,9 @@ def _scan(root, language):
         return (0 if rec.get("pinned") else 1, -rec.get("use_count", 0), -rec.get("last_used_at", 0), item["slug"])
 
     enabled = sorted((item for item in caps["skills"] if item["enabled"]), key=priority)
-    visible, hidden = skill_router.cat_theo_ngan_sach(enabled)
+    # The router names every enabled skill (2026-11-27, main_prompt_rendering.render_skill_router): nothing is cut
+    # here, the renderer keeps to its own character budget the same way for the trial as for the chat.
+    visible, hidden = enabled, 0
     result = {"version": 1, "root": str(root), "root_identity": _identity(root.stat()), "language": language,
         "layout": layout, "directories": directories, "files": files, "capabilities": caps,
         "router": {"visible": visible, "hidden_count": hidden}}

@@ -95,7 +95,9 @@ class TaskSkillConsumerTests(unittest.TestCase):
     def test_ambiguous_bound_selection_keeps_frozen_router_metadata(self):
         self.bound()
         selected = LazySkillSource(self.registry).resolve(self.brain, 'use skill unknown', min_score=1)
-        self.assertEqual(selected.action, 'fallback')
+        # 2026-11-27: an unclear request no longer falls back to the old router: nothing is preloaded, the router
+        # (names) and the turn's suggestions stay in charge.
+        self.assertEqual(selected.action, 'none')
         self.path.write_bytes(self.original.replace(b'Bao cao du lieu', b'Changed description'))
         self.assertEqual(skill_router.list_enabled_meta(self.brain)[0]['description'], 'Bao cao du lieu')
 
@@ -123,12 +125,15 @@ class TaskSkillConsumerTests(unittest.TestCase):
             with self.bound_here() as scope:
                 tools, routes = await mcp_hub.discover_all(**options)
                 description = next(tool['description'] for tool in tools if tool['fn'] == 'javis_use_skill')
-                self.assertIn('Frozen task description', description)
+                # 2026-11-27: the tool names skills, descriptions come through find=; both read the frozen scope.
+                self.assertIn('report', description)
+                found = await routes['javis_use_skill']['call']({'find': 'report du lieu'})
+                self.assertIn('Frozen task description', found)
                 self.assertEqual(mcp_hub._cache, global_cache, 'private descriptor must never update global cache')
                 second_tools, second_routes = await mcp_hub.discover_all(**options)
                 self.assertIs(second_tools, tools); self.assertIs(second_routes, routes)
                 inventory, _ = mcp_hub.registry_inventory(**options)
-                self.assertIn('Frozen task description', next(t['description'] for t in inventory if t['fn'] == 'javis_use_skill'))
+                self.assertIn('report', next(t['description'] for t in inventory if t['fn'] == 'javis_use_skill'))
                 scope.close()
                 with self.assertRaises(self.m.ScopeUnavailable): await mcp_hub.discover_all(**options)
         with patch.object(mcp_hub, '_cache', {}), \

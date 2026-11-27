@@ -46,7 +46,9 @@ DESCRIPTION = (
     "`call(tool, args)` calls a read-only connection tool by its exact name (from the tool search) and returns the "
     "parsed JSON (or text); a failed call raises ToolError. Use it to CHAIN reads: page through a period, look up "
     "details for each item, join two sources, then compute and print just the answer, so the raw data never enters "
-    "this conversation. For one call or SQL over one stored result, javis_query is simpler. Writes, sends and "
+    "this conversation. find_skills(query, limit=5) returns the skills that fit a job, each with its whole "
+    "description (load one afterwards with javis_use_skill). For one call or SQL over one stored result, "
+    "javis_query is simpler. Writes, sends and "
     "outside actions are refused. json, math, re, datetime, statistics and collections are ready; also "
     "importable: itertools, functools, decimal, fractions, heapq, bisect, operator, string, textwrap, unicodedata. "
     "No files, no network, no subprocess. Limits: 40 calls, 120 s. print() only what the owner's answer needs.")
@@ -144,6 +146,9 @@ def call(tool, args=None, **kwargs):
         return json.loads(text)
     except ValueError:
         return text
+def find_skills(query, limit=5):
+    """Skills that fit a job, best first: [{"slug", "name", "group", "description", "score", "coverage"}]."""
+    return call("javis_find_skills", {"query": str(query), "limit": int(limit)})
 def _print(*a, **k):
     k.pop("file", None)
     k.pop("flush", None)
@@ -156,7 +161,8 @@ _safe["__import__"] = _gated_import
 _safe["print"] = _print
 _src = _boot["code"]
 linecache.cache["<javis_code>"] = (len(_src), None, _src.splitlines(True), "<javis_code>")
-_env = {"__builtins__": _safe, "__name__": "__javis_code__", "call": call, "ToolError": ToolError}
+_env = {"__builtins__": _safe, "__name__": "__javis_code__", "call": call, "find_skills": find_skills,
+        "ToolError": ToolError}
 for _m in ("json", "math", "re", "datetime", "statistics", "collections"):
     if _m in sys.modules:
         _env[_m] = sys.modules[_m]          # ready without an import: models often forget one
@@ -229,13 +235,27 @@ def _bound_answer(text: str, scope: str) -> str:
     return text[:ANSWER_CHARS] + "\n[answer cut here: it was longer than the limit]"
 
 
-async def _dispatch(route: dict, name: str, args) -> tuple:
+SKILL_SEARCH = "javis_find_skills"   # find_skills() in the script: a read of the brain's skill index, no route
+
+
+async def _dispatch(route: dict, name: str, args, scope: str = "") -> tuple:
     """One `call()` from the script: (ok, text). Only declared reads, through the tool's guarded route."""
     import mcp_client
     import tool_result_shaper
     import tool_result_tools
     name = str(name or "").strip()
     args = args if isinstance(args, dict) else {}
+    if name == SKILL_SEARCH:
+        # Reads the skill index of this brain (skill_finder): descriptions only, never a skill body.
+        if not scope:
+            return False, "find_skills is not available here (no brain)."
+        import skill_finder
+        try:
+            limit = max(1, min(10, int(args.get("limit") or 5)))
+        except (TypeError, ValueError):
+            limit = 5
+        hits = await asyncio.to_thread(skill_finder.search, scope, str(args.get("query") or ""), limit)
+        return True, json.dumps(hits, ensure_ascii=False)
     ent = route.get(name)
     if not ent or name == TOOL:
         return False, f"no tool named '{name}'. Use the exact name from the tool search."
@@ -299,7 +319,7 @@ async def run(route: dict, code: str, scope: str = "") -> str:
                     return
                 if msg.get("op") == "call":
                     name = str(msg.get("tool") or "")
-                    ok, text = await _dispatch(route, name, msg.get("args"))
+                    ok, text = await _dispatch(route, name, msg.get("args"), scope)
                     used[name] = used.get(name, 0) + 1
                     proc.stdin.write((json.dumps({"ok": ok, "text": text}) + "\n").encode())
                     await proc.stdin.drain()

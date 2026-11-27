@@ -224,6 +224,9 @@
   const liteMode = () => !graphEnabled;
 
   const esc = (s) => (s || "").toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  // After an automatic rollback the updater keeps the failed start's error line (updater.record_startup_failure), so the
+  // screen says why instead of only "the new version failed" (Python 3.15, 27/11/2026).
+  const _updCause = (st) => (st && st.cause ? " " + esc(window.t("cs.upd_rb_cause")) + " <code>" + esc(st.cause) + "</code>." : "");
   // (i) button (info-tip.js, 0.214.0): long explanations hide behind it. Without info-tip.js
   // (Node tests) the text is drawn open so nothing is lost.
   const _infoLabel = () => (typeof window.t === "function" ? window.t("info.more") : "i");
@@ -1392,7 +1395,7 @@
           const stash = state.state.stashed ? ic("package") + " " + window.t("cs.upd_stashed") : "";
           progress(phase, stash);
           if (result === "success") { clearInterval(poll); status.innerHTML = OK_ICON + " " + window.t("cs.upd_done_reload"); setTimeout(_taiLaiKhiSan, 1500); return; }
-          if (result === "rolled_back") { clearInterval(poll); window.__javisUpdating = false; status.innerHTML = "↩ " + window.t("cs.upd_rb_a") + " <b>" + window.t("cs.upd_rb_b") + "</b>."; update.disabled = false; return; }
+          if (result === "rolled_back") { clearInterval(poll); window.__javisUpdating = false; status.innerHTML = "↩ " + window.t("cs.upd_rb_a") + " <b>" + window.t("cs.upd_rb_b") + "</b>." + _updCause(state.state); update.disabled = false; return; }
           if (["pull_failed", "rollback_failed", "error"].includes(result)) {
             clearInterval(poll); window.__javisUpdating = false; q("updVerProgress").style.display = "none";
             status.innerHTML = WARN_ICON + " " + esc(state.state.error || window.t("cs.upd_err")) + " " + window.t("cs.upd_see") + " <code>update.log</code>."; update.disabled = false; return;
@@ -3163,7 +3166,7 @@
           const stashNote = s.state.stashed ? ic("package") + " " + window.t("cs.ov_stashed") : "";
           renderProgress(ph, stashNote);
           if (res === "success") { clearInterval(poll); st.innerHTML = OK_ICON + " " + esc(window.t("cs.upd_done_reload")); setTimeout(_taiLaiKhiSan, 1500); return; }
-          if (res === "rolled_back") { clearInterval(poll); window.__javisUpdating = false; renderProgress("done", stashNote); st.innerHTML = "↩ " + esc(window.t("cs.upd_rb_a")) + " <b>" + esc(window.t("cs.upd_rb_b")) + "</b>. " + esc(window.t("cs.upd_see")) + " <code>update.log</code>."; verUpd.disabled = false; return; }
+          if (res === "rolled_back") { clearInterval(poll); window.__javisUpdating = false; renderProgress("done", stashNote); st.innerHTML = "↩ " + esc(window.t("cs.upd_rb_a")) + " <b>" + esc(window.t("cs.upd_rb_b")) + "</b>." + _updCause(s.state) + " " + esc(window.t("cs.upd_see")) + " <code>update.log</code>."; verUpd.disabled = false; return; }
           if (res === "pull_failed" || res === "rollback_failed" || res === "error") {
             clearInterval(poll); window.__javisUpdating = false;
             const pb = document.getElementById("ovVerProgress"); if (pb) pb.style.display = "none";
@@ -6147,10 +6150,9 @@
     return i && typeof i.catLabel === "function" ? i.catLabel(x) : (x || "");
   }
 
-  // ── Nhóm connector (khối B): mọi dịch vụ Google gom về MỘT card, bấm vào chọn dịch vụ ──
+  // ── Nhóm connector (khối B): một card mở bảng chọn dịch vụ. Google không còn gom ở đây (chủ, 27/11/2026): một
+  //    thẻ Google Workspace chính chủ bấm là nối, các dịch vụ Google khác đứng riêng như mọi thẻ khác. ──
   const GROUP_META = {
-    google: { name: "Google", icon: '<span class="gico">G</span>', category: "Văn phòng",
-              desc_key: "cs.cn_g_google" },
     // Built in since 2026-11-05 (owner: a default connection next to GitHub): two ways in, token or web sign-in.
     // No category here: the card takes its members' category from the catalog, so the filter chip matches it.
     cloudflare: { name: "Cloudflare", icon: iconInner({ icon: "/static/logos/cloudflare.jpg" }), desc_key: "cs.cn_g_cloudflare" },
@@ -6861,10 +6863,13 @@
     el.innerHTML = `<div class="pg-loading pg-page">${esc(t("common.loading"))}</div>`;
     let d;
     try { d = await (await fetch("/connect/catalog")).json(); } catch (e) { el.innerHTML = placeholder("mcp", window.t("cs.cn_load_err")); return; }
-    const cat = d.catalog || [];
     const conns = d.connections || [];
     const byId = {};
-    cat.forEach(c => byId[c.id] = c);
+    (d.catalog || []).forEach(c => byId[c.id] = c);
+    // A card another card replaces is offered only to someone who already has a connection of it (2026-11-27: the
+    // community Google Workspace card and the single Gmail / Calendar cards gave way to Google's official one).
+    // `byId` keeps every card, so existing connections still render with their own name and settings.
+    const cat = (d.catalog || []).filter(c => !c.replaced_by || conns.some(x => x.connector_id === c.id));
     byId.custom = { id: "custom", name: window.t("cs.cn_custom_name"), icon: "star", category: "Khác",
                     description: window.t("cs.cn_custom_desc"), auth_type: "apikey" };
     const st = await freshSettings();

@@ -277,37 +277,37 @@ def _javis_capability_summary(brain: str, skills=None) -> str:
     return "\n".join(parts)
 
 def _skill_router_block(brain: str, root: str, skills=None) -> str:
-    """ROUTER SKILL đa-engine (chèn vào system prompt của MỌI engine). Liệt kê skill đang BẬT kèm
-    mô tả (trigger) + chỉ rõ 2 cách nạp: tool javis_use_skill (engine API có tool) HOẶC mở thẳng
-    file SKILL.md bằng công cụ đọc file (Claude/Codex - dùng ĐƯỜNG DẪN TUYỆT ĐỐI vì cwd có thể là
-    /app). Đây là thứ giúp skill chạy trên cả ChatGPT/Codex, không phụ thuộc cơ chế native của Claude.
-    Cắt theo CẢ số mục lẫn ngân sách ký tự (skill_router.cat_theo_ngan_sach), và xếp theo mức
-    hay dùng trước khi cắt (skill_router.xep_theo_uu_tien) - nếu không thì việc cắt rơi vào
-    thứ tự bảng chữ cái và một skill quan trọng biến mất khỏi router chỉ vì tên nó vần cuối.
-    skills: cây skill đã quét sẵn (list_skills), lọc tại chỗ thay vì quét lại - xem
-    _gather_capabilities. None = tự quét (đường cũ)."""
+    """Frozen router of 2026-11-27: every enabled skill named by slug, by group (fixed order), then how to use them.
+    Descriptions reach the model through the turn's suggestions, not this list."""
     metas = ([s for s in skills if s.get("enabled")] if skills is not None
              else skill_router.list_enabled_meta(root))
     if not metas:
         return ""
     sk_dir = skill_router.skills_base(root, canonical=True)
-    lines = ["\n\n# === SKILL KHẢ DỤNG (skill router: works on EVERY engine) ==="]
-    hien, con_lai = skill_router.cat_theo_ngan_sach(
-        skill_router.xep_theo_uu_tien(metas, root))
-    for s in hien:
-        desc = (s.get("description") or "").replace("\n", " ")[:skill_router.SKILL_DESC_MAX]
-        lines.append(f"- {s['slug']} ({s['name']}): {desc}")
-    if con_lai > 0:
-        # Nói rõ CÁCH LẤY chứ không chỉ nói còn bao nhiêu: `javis_use_skill` nạp được theo
-        # slug kể cả skill không nằm trong danh sách trên, nên một skill bị cắt vẫn dùng được
-        # nếu model biết tên. Câu cũ chỉ trỏ sang một file mà model không đọc.
-        lines.append(f"…(+{con_lai} more skills not listed here - the full list is in "
-                     f"`Javis/index.md`, and `javis_use_skill(name=<slug>)` loads one directly "
-                     f"when you know its name)")
+    groups = {}
+    for s in sorted(metas, key=lambda s: (str(s.get("group") or "").casefold(), str(s.get("slug") or "").casefold())):
+        groups.setdefault(str(s.get("group") or "").strip() or "General", []).append(str(s.get("slug") or ""))
+    lines = ["\n\n# === SKILL KHẢ DỤNG (skill router: works on EVERY engine) ===",
+             f"{len(metas)} skills, named by group (slug only; descriptions come with the turn's suggestions):"]
+    used, cut = 0, 0
+    for group, slugs in groups.items():
+        shown = []
+        for slug in slugs:
+            if used + len(slug) + 2 > skill_router.SKILL_LIST_CHAR_BUDGET:
+                cut += 1
+                continue
+            shown.append(slug)
+            used += len(slug) + 2
+        if shown:
+            lines.append(f"- {group}: " + ", ".join(shown))
+    if cut:
+        lines.append(f"…(+{cut} more skills not named here; `javis_use_skill(find=...)` finds them)")
     lines.append(
-        "HOW TO USE: when the user's request MATCHES the description of a skill above, LOAD that skill "
+        "HOW TO USE: a turn may open with \"[Skills that may fit this request...\": the skills Javis ranked best for "
+        "it, with their whole description. When the request MATCHES a skill (there, or by its name here), LOAD it "
         "and FOLLOW it - call tool `javis_use_skill(name=<slug>)` if the engine has it; otherwise open "
-        f"`{sk_dir}/<slug>/SKILL.md` with a file-reading tool and follow its instructions. "
+        f"`{sk_dir}/<slug>/SKILL.md` with a file-reading tool and follow its instructions. To find a skill for a job "
+        "no suggestion covers, `javis_use_skill(find=<what you need>)` searches every skill by its whole description. "
         "Load one only on a real match, never indiscriminately."
     )
     return "\n".join(lines)
@@ -484,36 +484,48 @@ class MainRenderingTests(unittest.TestCase):
         self.assertNotIn("Plugin-1,", result)
         self.assertEqual(R.render_capability_summary({key: [] for key in caps}, "Latest run"), "")
 
-    def test_skill_router_preserves_budget_order_description_normalization_and_hidden_count(self):
+    def test_skill_router_names_every_skill_by_group_without_descriptions(self):
         self.fixture()
-        metas = [{"slug": "preferred", "name": "Preferred", "description": "First\nsecond"},
-                 {"slug": "last", "name": "Last", "description": "X" * 200}]
+        metas = [{"slug": "zeta", "name": "Zeta", "description": "First\nsecond", "group": "Marketing"},
+                 {"slug": "alpha", "name": "Alpha", "description": "X" * 900, "group": "AI"},
+                 {"slug": "beta", "name": "Beta", "description": "Y", "group": "marketing"}]
         before = copy.deepcopy(metas)
         actual = R.render_skill_router(metas, skills_dir="/captured/skills", hidden_count=3, description_max=10)
-        self.assertIn("- preferred (Preferred): First seco", actual)
-        self.assertIn("- last (Last): XXXXXXXXXX", actual)
+        self.assertIn("6 skills, named by group", actual)
+        self.assertIn("- AI: alpha", actual)
+        self.assertNotIn("X" * 20, actual)
+        self.assertNotIn("First", actual)
+        self.assertLess(actual.index("- AI: alpha"), actual.index("zeta"))
         self.assertIn("…(+3 more skills", actual)
         self.assertIn("`/captured/skills/<slug>/SKILL.md`", actual)
-        self.assertLess(actual.index("- preferred"), actual.index("- last"))
+        self.assertIn("javis_use_skill(find=", actual)
         self.assertEqual(metas, before)
         self.assertEqual(R.render_skill_router([], skills_dir="/skills"), "")
+        small = R.render_skill_router(metas, skills_dir="/s", char_budget=8)
+        self.assertIn("- AI: alpha", small)
+        self.assertIn("…(+2 more skills", small)
 
-    def test_actual_production_skill_budget_selection_remains_outside_renderer(self):
+    def test_actual_production_router_ignores_usage_and_matches_frozen_legacy(self):
         self.fixture()
-        self.skills = [{"slug": f"skill-{i:02}", "name": f"Skill {i}", "description": "Do work", "enabled": True} for i in range(8)]
+        self.skills = [{"slug": f"skill-{i:02}", "name": f"Skill {i}", "description": "Do work", "enabled": True,
+                        "group": "G"} for i in range(8)]
         (self.brain / "Javis").mkdir()
-        (self.brain / "Javis" / "skill-usage.json").write_text('{"skill-07":{"pinned":true}}', encoding="utf-8")
-        with patch.object(main.skill_router, "SKILL_LIST_MAX", 2):
-            old = self.legacy_namespace()["_skill_router_block"]
-            actual = main._skill_router_block(str(self.brain), str(self.brain), self.skills)
-            self.assertEqual(actual, old(str(self.brain), str(self.brain), self.skills))
-        self.assertIn("- skill-07", actual)
-        self.assertNotIn("- skill-02", actual)
-        self.assertIn("…(+6 more skills", actual)
+        (self.brain / "Javis" / "skill-usage.json").write_text('{"skill-07":{"pinned":true,"use_count":9}}',
+                                                               encoding="utf-8")
+        old = self.legacy_namespace()["_skill_router_block"]
+        actual = main._skill_router_block(str(self.brain), str(self.brain), self.skills)
+        self.assertEqual(actual, old(str(self.brain), str(self.brain), self.skills))
+        self.assertIn("- G: " + ", ".join(f"skill-{i:02}" for i in range(8)), actual)
+        with patch.object(main.skill_router, "SKILL_LIST_CHAR_BUDGET", 30):
+            cut = main._skill_router_block(str(self.brain), str(self.brain), self.skills)
+            self.assertEqual(cut, old(str(self.brain), str(self.brain), self.skills))
+        self.assertIn("skill-00", cut)
+        self.assertNotIn("skill-07", cut)
+        self.assertIn("…(+5 more skills", cut)
 
     def test_router_retains_discovery_instructions_when_all_known_skills_are_hidden(self):
         self.fixture()
-        with patch.object(main.skill_router, "SKILL_LIST_MAX", 0):
+        with patch.object(main.skill_router, "SKILL_LIST_CHAR_BUDGET", 0):
             old = self.legacy_namespace()["_skill_router_block"]
             actual = main._skill_router_block(str(self.brain), str(self.brain), self.skills)
             self.assertEqual(actual, old(str(self.brain), str(self.brain), self.skills))

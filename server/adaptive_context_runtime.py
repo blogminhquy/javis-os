@@ -430,13 +430,14 @@ class AdaptiveContextCanary:
         if not any((state_applied, memory_applied, skill_applied)):
             return AdaptiveContextPlan("legacy", "all_assigned_sources_fell_back", feature_status=status)
 
-        # Unapplied/unassigned sources remain in the legacy base independently.
-        base_prompt = base_prompt_builder(not memory_applied, not skill_applied)
+        # Unapplied/unassigned sources remain in the legacy base independently. The skill router stays in the base
+        # either way (2026-11-27): it only names the skills now, a stable list of a few hundred characters, and the
+        # skill source no longer replaces it, it only preloads the body of a skill it is sure of.
+        base_prompt = base_prompt_builder(not memory_applied, True)
         base_tokenizer = HeuristicTokenizer(provider, model)
         base_item = ContextItem(
             id="source_fallback_contract", kind="source_fallback_contract", content=base_prompt,
-            source_ref=("javis:legacy-base:memory=" + str(not memory_applied).lower() +
-                        ":skills=" + str(not skill_applied).lower()),
+            source_ref=("javis:legacy-base:memory=" + str(not memory_applied).lower() + ":skills=true"),
             token_cost=base_tokenizer.count_text(base_prompt), relevance=1.0, confidence=1.0,
             authority=1.0, freshness=1.0, required=True, trust="system",
         )

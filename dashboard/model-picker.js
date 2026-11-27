@@ -35,6 +35,10 @@
   let pinBroken = false;   // phiên có ghim nhưng ghim HỎNG (provider mất key) - server đang chạy mặc định chung
   let pinLimited = 0;      // 0.285.0: the pinned plan is out of quota until this epoch; the chat runs on the main model
   let pinSid = null;       // phiên mà sessionPin đang nói về (chống vẽ nhầm khi đổi phiên nhanh)
+  // An assistant's chat (owner, 26/11/2026: "mỗi agent có ghim riêng khi chat"): where its model comes from. "window" =
+  // picked in this window, "agent_chat" = the assistant's chat pin (the last model picked in any chat with it),
+  // "agent" = the model in the assistant's settings, "" = the main model. Background work only ever uses "agent".
+  let pinSource = "";
   let pendingPin = null;   // model chọn khi CHƯA có phiên (chat trống) - áp ngay khi mint id
   // Effort of the open chat window (owner, 25/11/2026: windows never change each other). null = it follows its setting
   // (the assistant's own level in an assistant's chat, the card's effort otherwise).
@@ -136,7 +140,7 @@
     const sid = curSid();
     pinSid = sid;
     if (!sid) {
-      sessionPin = null; pinBroken = false; pinLimited = 0; agentEff = null; sessionEff = null;
+      sessionPin = null; pinBroken = false; pinLimited = 0; agentEff = null; pinSource = ""; sessionEff = null;
       await refreshRoute();
       return;
     }
@@ -152,10 +156,11 @@
       pinLimited = (d && d.pin_limited_until) || 0;
       // 0.193.0: in an assistant's chat the effort chip shows and sets that assistant's own level (default medium).
       agentEff = d && d.agent_slug ? { slug: d.agent_slug, level: d.agent_reasoning || "medium" } : null;
+      pinSource = (d && d.pin_source) || "";
       sessionEff = (d && d.pinned_reasoning) || null;
       sessionPin = (d && d.pinned_provider && !pinBroken)
         ? { provider: d.pinned_provider, model: d.pinned_model || "" } : null;
-    } catch (e) { if (pinSid === sid) { sessionPin = null; pinBroken = false; pinLimited = 0; agentEff = null; sessionEff = null; setRoute(null); } }
+    } catch (e) { if (pinSid === sid) { sessionPin = null; pinBroken = false; pinLimited = 0; agentEff = null; pinSource = ""; sessionEff = null; setRoute(null); } }
   }
 
   // FALLBACK_BEGIN
@@ -243,7 +248,9 @@
       mt.textContent = fb ? chipLabel({ provider: fb.provider, model: fb.model }, runP) : chipLabel(eff, p);
       mt.title = fb ? fallbackTitle(fb, state.providers.find((x) => x.id === fb.selected_provider), runP)
         : (p ? p.label + " · " + (eff.model || defText(eff.provider)) + "\n" : "") + (sessionPin
-        ? window.t(agentEff && agentEff.slug === "javis-core" ? "mpick.core_pin_title" : "mpick.pin_title")
+        ? window.t(agentEff && agentEff.slug === "javis-core" ? "mpick.core_pin_title"
+          : agentEff && pinSource === "agent_chat" ? "mpick.agent_chat_pin_title"
+            : agentEff && pinSource === "agent" ? "mpick.agent_model_title" : "mpick.pin_title")
         : pinBroken
           ? window.t(pinLimited ? "mpick.pin_limited_title" : "mpick.pin_broken_title")
           : window.t("mpick.follow_default"));
@@ -349,7 +356,8 @@
     let html = await window.JavisModelList.render(o);
     if (luot !== luotVe || pop.hidden) return;
     // An assistant's chat with its own model: one row to go back to following the main chat's model (0.285.0).
-    if (agentEff && (sessionPin || pinBroken)) {
+    if (agentEff && (pinBroken || (agentEff.slug === "javis-core" ? sessionPin
+      : sessionPin && (pinSource === "window" || pinSource === "agent_chat")))) {
       html = '<button type="button" class="mb-follow">' + (typeof ic === "function" ? ic("rotate-cw") : "") + " " +
         window.t(agentEff.slug === "javis-core" ? "mpick.follow_main" : "mpick.follow_agent") + "</button>" + html;
     }
@@ -622,6 +630,8 @@
       sessionPin = { provider: prov, model: model };
       pinBroken = false;   // ghim mới đè ghim hỏng cũ
       pinSid = sid;
+      // 26/11/2026: in an assistant's chat the server also keeps the pick as that assistant's chat pin.
+      if (agentEff && agentEff.slug !== "javis-core") pinSource = "window";
       await pinToSession(sid, prov, model);
       coreChanged();
     } else {
@@ -689,8 +699,9 @@
       const sid = curSid();
       if (sid) await pinToSession(sid, "", "");
       coreChanged();
-      sessionPin = null; pinBroken = false; pinLimited = 0; pendingPin = null;
-      await loadState(); await refreshRoute(); renderBar(); close();
+      sessionPin = null; pinBroken = false; pinLimited = 0; pendingPin = null; pinSource = "";
+      // An assistant's chat goes back to the model in its settings, which the chat's meta names (26/11/2026).
+      await loadState(); await loadSessionPin(); renderBar(); close();
       return;
     }
     const item = e.target.closest(".mb-item");

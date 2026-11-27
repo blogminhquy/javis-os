@@ -50,12 +50,17 @@ slug: <ascii>
 role: <vai trò 1 câu>
 tags: [Marketing, Viết nội dung]   # một hay nhiều tag; ví dụ Marketing, Bán hàng, Nội dung, Vận hành, Tài chính, AI, Năng suất, Cá nhân
 skills: [slug-skill]      # [] nếu chưa gán; chỉ gán skill đã có trong skills/
-model: ""                 # "" = dùng model chính | tên model, vd sonnet, gpt-5.5, claude-sonnet-5-5, gemini-2.5-pro
-model_provider: ""        # "" = suy theo tên model | anthropic-cli, openai-oauth, anthropic-api, openai, openrouter, gemini...
+model: ""                 # "" = Javis picks one that fits (see below) | a model the owner named, e.g. sonnet, gpt-5.5
+model_provider: ""        # "" with an empty model | anthropic-cli, openai-oauth, anthropic-api, openai, openrouter, gemini...
 updated: <YYYY-MM-DD>
 ---
 <system prompt: cách làm việc, nguyên tắc, định dạng đầu ra mong muốn>
 ```
+**A new assistant's model: leave `model` empty unless the owner named one.** Right after the turn, Javis gives it a model
+that fits its work from the cards this machine runs (first card of the usage order; heavy work such as code, data, finance,
+law, research gets the strong model, marketing, sales, customer care a mid one, translation, notes, reminders a light one:
+on Claude Opus, Sonnet, Haiku; on ChatGPT, Antigravity, Grok Build the picks made from that account's own list). Never
+guess a model name yourself: a model the machine cannot run leaves the assistant broken. Tell the owner they can change it.
 Gán hay đổi model cho trợ lý: ưu tiên tool `javis_team` op=set_agent_model (slug, model, model_provider). Tool tự kiểm
 model_provider hợp lệ và chạy trên MỌI engine, kể cả engine API. Cùng một tên model có ở hai nhà (claude-* có ở Claude Code
 lẫn Anthropic API) thì PHẢI ghi model_provider.
@@ -73,7 +78,7 @@ Prompt tốt thường 10-25 dòng. Viết xong tự đọc lại bằng mắt m
 ```
 ---
 name: <Tên skill>
-description: <nêu THẲNG năng lực, TỐI ĐA 150 ký tự - vd "Tóm tắt biên bản họp thành danh sách việc cần làm.">
+description: <câu đầu nêu THẲNG năng lực, rồi khi nào dùng; TỐI ĐA 1.024 ký tự - vd "Tóm tắt biên bản họp thành danh sách việc cần làm. Dùng khi có biên bản, ghi âm hay ghi chú cuộc họp.">
 group: <Marketing|Bán hàng|Nội dung|Vận hành|Tài chính|AI|Năng suất|Cá nhân>
 ---
 <hướng dẫn chi tiết cho AI khi skill kích hoạt>
@@ -86,10 +91,10 @@ group: <Marketing|Bán hàng|Nội dung|Vận hành|Tài chính|AI|Năng suất|
 soi skill trong `skills/` của brain. Vi phạm chuẩn dưới đây sẽ KHÔNG có thông báo lỗi nào -
 skill cứ thế hỏng âm thầm lúc chạy. Bạn là lớp phòng thủ duy nhất.
 
-1. `description` **TỐI ĐA 150 ký tự**. **Viết xong hãy ĐẾM, đừng ước lượng** - đây là việc
-   bắt buộc, không phải lời khuyên. Router cắt đúng ở đó (`skill_router.SKILL_DESC_MAX`) ở
-   cả system prompt lẫn mô tả tool, nên viết dài hơn là phần đuôi MẤT IM LẶNG và skill không
-   route được. Không ai cảnh báo bạn: không đếm là hỏng mà không biết.
+1. `description` **TỐI ĐA 1.024 ký tự** (chuẩn Agent Skills, `skill_router.SKILL_DESC_MAX`).
+   Javis tìm skill theo TOÀN BỘ mô tả (cùng mục `## Khi nào dùng` trong thân file), nên mô tả
+   nói rõ skill làm gì VÀ khi nào dùng, bằng những chữ người dùng hay nói. Phần vượt 1.024 ký
+   tự bị bỏ qua khi tìm, nên viết dài thì ĐẾM lại.
 2. `description` nêu THẲNG năng lực. KHÔNG mở đầu bằng "Kích hoạt khi...", "Sử dụng skill
    này khi..." - mọi skill đều mở như vậy nên nó đốt 29 ký tự mà không phân biệt gì.
    Tốt: `Tóm tắt biên bản họp thành danh sách việc cần làm.`

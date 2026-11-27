@@ -8,6 +8,35 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.649.0] - 2026-11-27
+### Improved
+- **Javis sees every skill.** The skill list in the prompt used to hold about 20 skills (a 44-skill brain hid 23). The prompt now names every skill, short and fixed, so the prompt cache keeps holding.
+- **Skills are picked by their whole description, no longer cut at 150 characters.** Each turn Javis ranks every skill against what you typed and gives the model the few that fit, with their whole description. Measured on two test sets: the right skill 95-96% of the time, against 23-64% before.
+- **A skill description can be up to 1,024 characters** (the Agent Skills standard), so skills from Anthropic or other stores work as written. The "Description too long" warning on the Skills page only shows past 1,024.
+- **Javis learns how you ask for a skill.** A request the suggestions missed, followed by that skill being used, finds it next time. The model can also search skills by the job through `javis_use_skill(find=...)`, the tool search and `javis_code`. Skill description trials (review of skill improvement proposals) now score with the new routing too.
+
+## [0.648.0] - 2026-11-27
+### Added
+- **Each assistant remembers the model you pick in its chat.** Changing the model in a chat with an assistant pins it for chatting with that assistant: new chats and old ones with it run that model. Its background work (reminders, loops, Kanban, team turns, workflows, bots) keeps the model in its settings. The model list has a "Follow the model set on the assistant" row to clear the pin.
+- **A new assistant gets a model that fits its work.** An assistant made in chat, installed from the Store, created on the Partners page or in a team chat and left on "Default" gets one from the first card of your usage order: a strong model for code, data and finance, a balanced one for marketing, sales and customer care, a light one for translation, notes and reminders. Claude picks between Opus, Sonnet and Haiku; ChatGPT, Antigravity and Grok Build pick from your account's own model list. The line under the answer names the model, and you can change it any time.
+
+## [0.647.0] - 2026-11-27
+### Added
+- **Google Workspace card through Google's own servers.** Gmail, Calendar, Drive, Docs, Sheets, Slides, Tasks, Chat and Contacts go through Google's official MCP servers (generally available on 2026-11-24, the same backend as the Google Workspace CLI), with one sign-in. You sign in inside the dashboard, so it works on a VPS too, without the screen the old card needed. Making the OAuth client takes about 3 minutes with Google's Personal mode page: it enables the APIs, with no consent screen or app verification to do.
+- **Google asks before sensitive actions.** Sending mail outside, sharing, moving to trash: Google stops and asks, Javis shows you the question and Google's preview in the chat, and the action runs only if you agree. Javis never answers for you.
+### Improved
+- **Tidier Connections page:** the "Google" group card that opened a service picker is gone. One Google Workspace card connects in one click; Sheets, Keep and the other Google services are cards of their own like any other.
+- The old Google Workspace card (community workspace-mcp), Google Tasks, and the single Gmail and Google Calendar cards are no longer offered for new connections. Connections already made keep running unchanged.
+### Security
+- **Gmail card: sending real mail now needs Full access.** Google added send, reply, forward, trash and spam tools to its Gmail server. Before this release a Gmail connection at Draft could send real mail, and one at Read-only could mark spam.
+
+## [0.646.1] - 2026-11-27
+### Fixed
+- **Javis runs on Windows with Python 3.15 again.** Since 0.642.3, Windows machines on Python 3.15 died at startup, so the Update button rolled back to the old version. The patch that keeps the port open on Windows now takes Python 3.15's new argument, and on a Python it does not know yet it stands aside so the server still starts.
+- **Machines patched by hand update normally.** If the updater reports a conflict in `server/accept_guard.py`, drop the local change to that file and press Update again.
+### Improved
+- **A failed update says why.** When the new version does not start, the updater reads that start's own log before rolling back, keeps its last lines in update.log and shows the error line on the Update screen, instead of only "the new version failed".
+
 ## [0.646.0] - 2026-11-27
 ### Added
 - **Meta's Muse has its own card on the Models page.** Open "Connect another provider", pick Muse, name the account, paste its cookie, press Connect Muse. Muse joins the usage order like ChatGPT or Claude, drag it in as a fallback or pick it as the background model.

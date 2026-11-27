@@ -9,7 +9,7 @@ scope: everything in the brain and Javis's own code. Checked here, no model, no 
   folders, the learning switch or anything outside the brain;
 - every save keeps a backup with an id; undo restores it (a created file is removed), an undo can be undone, a file
   edited again after the change keeps its current text in the undo;
-- a definition file that would no longer load is refused (frontmatter, skill description over 150 characters);
+- a definition file that would no longer load is refused (frontmatter, skill description over 1,024 characters);
 - Javis's own code: attached next to the chat's other repos only on an install that can push to the official repo;
   anywhere else (no write access, GitHub not connected) nothing is cloned and op=report gives a prefilled issue link;
 - update: only reads the versions and sends the owner to the Update page, it NEVER starts an update (owner,
@@ -94,9 +94,9 @@ check("content và edits cùng lúc: từ chối", bool(raises(SU.save, root, "a
 check("file định nghĩa mất frontmatter: từ chối, file giữ nguyên",
       bool(raises(SU.save, root, "agents/lan.md", content="Chỉ còn chữ")) and
       "lấy BIB và gửi xe" in (BR / "agents" / "lan.md").read_text(encoding="utf-8"))
-long_desc = "---\nname: Viết email\ndescription: " + ("x" * 151) + "\n---\nThân\n"
-check("skill: description quá 150 ký tự bị từ chối", "150" in raises(SU.save, root, "skills/viet-email/SKILL.md",
-                                                                     content=long_desc))
+long_desc = "---\nname: Viết email\ndescription: " + ("x" * 1025) + "\n---\nThân\n"
+check("skill: description over 1,024 characters is refused", "1024" in raises(SU.save, root, "skills/viet-email/SKILL.md",
+                                                                             content=long_desc))
 c3 = SU.save(root, "skills/viet-email/SKILL.md", content="---\nname: Viết email\ndescription: Viết email ngắn\n---\nThân\n")
 check("skill mới: tạo file, đánh dấu tạo mới", c3["created"] and (BR / "skills" / "viet-email" / "SKILL.md").is_file(), c3)
 check("nội dung rỗng bị từ chối", bool(raises(SU.save, root, "memory/x.md", content="   ")))

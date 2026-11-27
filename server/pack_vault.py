@@ -52,6 +52,37 @@ from config import STATE_DIR
 
 HIEU_UNG_DIR = STATE_DIR / "packs-state"
 
+# Owner, 27/11/2026: an assistant a pack puts in the brain gets a model that fits, from the cards this machine runs.
+# main sets this to `_apply_auto_agent_model(path, keep=...)` (this module never imports main). It runs right after
+# the copy and BEFORE the hash is taken, so the ledger still sees the file as the pack's own: an update replaces it and
+# an uninstall removes it, as before. `keep` is the model the copy had before an update, so an update keeps the pick.
+AGENT_MODEL_HOOK = None
+_MODEL_KEYS = ("model", "model_provider", "reasoning")
+
+
+def _model_fields(md: Path) -> dict:
+    """{model, model_provider, reasoning} of an assistant file, only those set."""
+    try:
+        import fastyaml
+        text = md.read_text(encoding="utf-8")
+        if not text.startswith("---"):
+            return {}
+        end = text.find("\n---", 3)
+        meta = fastyaml.safe_load(text[3:end]) if end > 0 else {}
+    except Exception:  # noqa: BLE001 - unreadable: nothing to keep
+        return {}
+    meta = meta if isinstance(meta, dict) else {}
+    return {k: str(meta[k]) for k in _MODEL_KEYS if str(meta.get(k) or "").strip()}
+
+
+def _give_agent_model(md: Path, keep: dict) -> None:
+    if AGENT_MODEL_HOOK is None:
+        return
+    try:
+        AGENT_MODEL_HOOK(md, keep)
+    except Exception as e:  # noqa: BLE001 - the assistant is installed either way, on "Default" at worst
+        print(f"[pack agent model] {md.name}: {type(e).__name__}: {e}", file=sys.stderr)
+
 # Loại năng lực gói ghi được vào brain, kèm nơi đến và hình dạng.
 #   thu_muc : đường dẫn tương đối từ gốc brain
 #   la_thu_muc : skill là một THƯ MỤC (SKILL.md + tệp phụ), agent/workflow là một tệp .md
@@ -366,9 +397,12 @@ def cai(pack_id: str, thu_muc_goi: Path, brain_root: str) -> dict:
                         continue
                     dich = _target(root, loai, ten)
                     ke = "doi_ten"
+                keep = _model_fields(dich) if loai == "agents" and ke == "cap_nhat" and dich.is_file() else {}
                 _copy(nguon, dich, loai)
                 if ten != slug and not LOAI[loai]["la_thu_muc"]:
                     _set_slug(dich, slug, ten)
+                if loai == "agents":
+                    _give_agent_model(dich, keep)
                 moi[khoa] = {"duong": str(dich), "hash": _hash(dich), "loai": loai, "slug": ten}
                 hang = {"khoa": khoa, "duong": str(dich)}
                 if ke == "doi_ten":

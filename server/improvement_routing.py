@@ -3,10 +3,13 @@
 Spec 9.2 and 16.1: the skill `description` is its own behaviour surface. A routing candidate changes
 only that value; the body, every other frontmatter key, name, enabled state and group stay byte-equal.
 
-The evaluator measures Javis's own lazy router (the deterministic `LazySkillSource._score` ranking
-used for API engines) over two metadata views: the current skills, and the same skills with the
-target's candidate description. Native CLI engines choose skills by model judgement; that routing is
-not measured here and reports must say so.
+The evaluator measures Javis's main-chat skill routing (`skill_finder`, 2026-11-27) over two views: the current
+skills, and the same skills with the target's candidate description. For each request the router either preloads
+the body of a skill it is sure of ("load"), offers the few that fit with their description ("suggest", the model
+picks), or gives nothing ("none"); `skill_finder.decision` names which. With a live registry (`Routing`) the
+brain's own index is used (bodies' "When to use", learned requests); without one, `route()` scores descriptions
+alone, deterministically. Native CLI engines also choose skills by model judgement over their own native list;
+that routing is not measured here and reports must say so.
 
 Case kinds: `positive` (this skill should be chosen), `negative` (no skill should be), `competing`
 (another skill should be chosen). The hard gate of spec M4: the candidate may not turn a correct
@@ -69,43 +72,29 @@ def patch_description(raw: bytes, description: str) -> bytes:
     return patched
 
 
-def _candidates(manifests):
-    result = []
-    for manifest in manifests:
-        slug = manifest["slug"]
-        name = str(manifest.get("name") or slug).strip()[:180]
-        summary = str(manifest.get("description") or name).strip()[:2000]
-        group = str(manifest.get("group") or "Chung").strip()[:120]
-        result.append({"slug": slug, "name": slug, "aliases": list(dict.fromkeys((slug, name, group))), "summary": summary})
-    return result
-
-
-def route(query: str, manifests: list, *, min_score: float = 0.24, ambiguity_margin: float = 0.08) -> dict:
-    """Same decision the bound lazy router makes: rank by score, refuse low or ambiguous picks."""
-    from lazy_skill_runtime import LazySkillSource, _EXPLICIT_RE
-    ranked = sorted(((LazySkillSource._score(query, item), item["slug"]) for item in _candidates(manifests)),
-                    key=lambda pair: (-pair[0], pair[1]))
-    explicit = bool(_EXPLICIT_RE.search(query or ""))
-    if not ranked:
-        return {"action": "fallback" if explicit else "none", "slug": "", "score": 0.0}
-    top_score, top = ranked[0]
-    runner = ranked[1][0] if len(ranked) > 1 else 0.0
-    if top_score < min_score:
-        return {"action": "fallback" if explicit else "none", "slug": "", "score": round(top_score, 6)}
-    if runner and top_score - runner < ambiguity_margin:
-        return {"action": "fallback", "slug": "", "score": round(top_score, 6)}
-    return {"action": "load", "slug": top, "score": round(top_score, 6)}
+def route(query: str, manifests: list, *, min_score: float = 0.0, ambiguity_margin: float = 0.0) -> dict:
+    """The main chat's decision over description-only manifests: skill_finder.decision of a description-only index.
+    `min_score` and `ambiguity_margin` belonged to the word-overlap router this replaced; they are ignored."""
+    import skill_finder
+    return skill_finder.decision(skill_finder.choose(skill_finder.index_from_manifests(manifests), query))
 
 
 def label(case: dict, decision: dict) -> str:
+    """One case's outcome. The skill first in line (preloaded, or first among the suggestions) is the router's
+    pick. An expected skill offered further down the suggestions is `deferred` (the model sees every suggestion
+    with its description and decides), unless another skill's body was preloaded: that is a wrong pick."""
     expected = case.get("expected") or ""
-    if decision["action"] == "fallback":
-        return "deferred"  # the legacy full index takes over; neither a hit nor a miss of this router
-    chosen = decision["slug"] if decision["action"] == "load" else ""
+    action = decision.get("action")
+    if action == "fallback":
+        return "deferred"  # the router could not decide this turn (an unreadable source); neither a hit nor a miss
+    chosen = (decision.get("slug") or "") if action in ("load", "suggest") else ""
+    offered = list(decision.get("suggested") or ([chosen] if chosen else []))
     if not expected:
-        return "unnecessary" if chosen else "correct"
+        return "unnecessary" if chosen or offered else "correct"
     if chosen == expected:
         return "correct"
+    if expected in offered and action != "load":
+        return "deferred"
     return "wrong_skill" if chosen else "missed"
 
 
@@ -136,8 +125,8 @@ def evaluate(cases: list, baseline: list, target: str, description: str, *, mult
              decide=None) -> dict:
     """Paired routing report for one description candidate. Manifests are host-read, never client data.
 
-    `decide(query, descriptions)` is the production decision (the live lazy router with or without the
-    overlay); without it the pure `route()` model over the given manifests is used (tests)."""
+    `decide(query, descriptions)` is the production decision (skill_finder over the brain's own index, with or
+    without the overlay); without it the pure description-only `route()` over the given manifests is used."""
     slugs = {item["slug"] for item in baseline}
     if target not in slugs:
         raise PermissionError("routing_target_unavailable")
@@ -171,7 +160,7 @@ def evaluate(cases: list, baseline: list, target: str, description: str, *, mult
         verdict = "inconclusive"
     return {"version": 1, "target": target, "description": description, "cases": rows, "counts": counts,
             "outcomes": outcomes, "statistics": stats, "required_loss_count": required_losses,
-            "mechanical_verdict": verdict, "measured_router": "javis_lazy_router",
+            "mechanical_verdict": verdict, "measured_router": "javis_skill_finder",
             "native_cli_routing": "not_measured", "business_eligibility": "unverified"}
 
 
@@ -218,15 +207,18 @@ class Routing:
         self.registry = registry
 
     def _decider(self, brain):
+        """The live decision of this brain's main chat (skill_finder over its own index: descriptions, "When to
+        use", learned requests), with or without the overlay. Each view's index is built once per evaluation."""
         if self.registry is None:
             return None
-        from lazy_skill_runtime import LazySkillSource
-        source = LazySkillSource(self.registry)
+        import skill_finder
+        views = {}
 
         def decide(query, descriptions):
-            selected = source.resolve(Path(brain), query, descriptions=descriptions)
-            return {"action": selected.action, "slug": selected.slug if selected.action == "load" else "",
-                    "score": selected.score, "reason": selected.reason}
+            key = json.dumps(descriptions or {}, sort_keys=True, ensure_ascii=False)
+            if key not in views:
+                views[key] = skill_finder.index_for(Path(brain), descriptions=descriptions or None)
+            return skill_finder.decision(skill_finder.choose(views[key], query, root=Path(brain)))
         return decide
 
     def _available(self) -> bool:
