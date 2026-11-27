@@ -259,12 +259,21 @@ check("an old assistant chat runs the assistant's current model, not the model c
 own_chat = store.create_session(brain=B, engine="cli", channel="agent:minh")
 client.post(f"/sessions/{own_chat}/model", data={"provider": "groq", "model": "qwen3-32b"}, headers=H)
 check("a model the owner picked in that window stays", turn(own_chat)[0] == "groq", turn(own_chat))
+# 26/11/2026: that pick is also the assistant's chat pin, so its chats with no pick of their own follow it.
+check("a chat with no pick of its own follows the assistant's chat pin", turn(old_chat)[0] == "groq", turn(old_chat))
 (BR / "agents" / "minh.md").write_text("---\nname: Minh\nrole: Kho\nmodel: opus\nmodel_provider: anthropic-cli\n"
                                        "reasoning: low\n---\nBạn là Minh.\n", encoding="utf-8", newline="\n")
-check("changing the assistant's model moves its chats that had no pick of their own",
-      turn(old_chat)[0] == "anthropic-cli" and turn(own_chat)[0] == "groq", (turn(old_chat), turn(own_chat)))
+check("changing the assistant's settings leaves chats on its chat pin (chat and background are apart)",
+      turn(old_chat)[0] == "groq" and turn(own_chat)[0] == "groq", (turn(old_chat), turn(own_chat)))
 client.post(f"/sessions/{own_chat}/model", data={"provider": ""}, headers=H)
-check("'Follow the assistant's model' clears the window's pick", turn(own_chat)[0] == "anthropic-cli", turn(own_chat))
+check("'Follow the assistant's model' clears the window's pick and the chat pin",
+      turn(own_chat)[0] == "anthropic-cli" and turn(old_chat)[0] == "anthropic-cli", (turn(own_chat), turn(old_chat)))
+(BR / "agents" / "minh.md").write_text("---\nname: Minh\nrole: Kho\nmodel: gpt-5.5\nmodel_provider: openai-oauth\n"
+                                       "reasoning: low\n---\nBạn là Minh.\n", encoding="utf-8", newline="\n")
+check("with no chat pin, changing the assistant's model moves its chats that had no pick of their own",
+      turn(old_chat)[0] == "openai-oauth", turn(old_chat))
+(BR / "agents" / "minh.md").write_text("---\nname: Minh\nrole: Kho\nmodel: opus\nmodel_provider: anthropic-cli\n"
+                                       "reasoning: low\n---\nBạn là Minh.\n", encoding="utf-8", newline="\n")
 meta = client.get(f"/sessions/{old_chat}/meta").json()
 check("the composer shows the assistant's current model for that chat",
       meta.get("pinned_provider") == "anthropic-cli" and meta.get("pinned_model") == "opus", meta)

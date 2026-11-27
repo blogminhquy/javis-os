@@ -11,6 +11,7 @@ Data it owns (all under settings["model"]):
     accounts         {provider: [{"id", "label", "enabled"}]} order of accounts / keys in a card
     account_keys     {account_id: key}                        encrypted at rest ("model.account_keys.*")
     telegram_chats   {chat_key: {"provider", "model"}}        a pin set by /model inside that chat
+    agent_chats      {"<brain>|<slug>": {"provider", "model"}} an assistant's chat pin, set from its chat's model chip
     routing_version  1
 
 Legacy fields stay in sync so the ~150 places that read them keep working: `main` always mirrors
@@ -415,6 +416,37 @@ def set_telegram_pin(m: dict, chat_key: str, provider: str, model: str = "") -> 
         chats[k] = {"provider": provider, "model": model or ""}
     else:
         chats.pop(k, None)
+
+
+# ---------------------------------------------------------------- an assistant's chat pin
+
+def agent_chat_key(brain_key: str, slug: str) -> str:
+    """Key of one assistant in `agent_chats`: its brain (the normalised key the session store writes) and its slug."""
+    return f"{str(brain_key or '').strip()}|{str(slug or '').strip()}"
+
+
+def agent_chat_pin(m: dict, key: str) -> dict:
+    """{'provider','model'} the owner pinned for chatting with one assistant, or {} when none (owner, 26/11/2026).
+
+    Picked in the model chip of a chat with that assistant. It covers that assistant's chats only: its background work
+    (Kanban jobs, reminders, loops, team turns, workflow steps, a dedicated bot) keeps the model in its settings."""
+    p = (((m or {}).get("agent_chats") or {}).get(str(key or "")) or {})
+    if not isinstance(p, dict) or not str(p.get("provider") or "").strip():
+        return {}
+    return {"provider": str(p["provider"]).strip(), "model": str(p.get("model") or "").strip()}
+
+
+def set_agent_chat_pin(m: dict, key: str, provider: str, model: str = "") -> None:
+    """Set or clear (empty provider) one assistant's chat pin in the `model` section `m`."""
+    pins = m.get("agent_chats")
+    if not isinstance(pins, dict):
+        pins = m["agent_chats"] = {}
+    k = str(key or "")
+    prov = str(provider or "").strip()
+    if prov:
+        pins[k] = {"provider": prov, "model": str(model or "").strip()}
+    else:
+        pins.pop(k, None)
 
 
 # ---------------------------------------------------------------- migration
