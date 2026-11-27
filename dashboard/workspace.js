@@ -2412,16 +2412,16 @@
   // one line when it is searched as needed, a warning line when the always-loaded rules no longer fit.
   window.JavisMemStrip = function (m) {
     if (!m || (m.mode !== "recall" && m.mode !== "docs")) return "";
-    var I = window.JavisInfo;
+    var JI = window.JavisInfo;
     var nf = function (x) { return Number(x || 0).toLocaleString(); };
     var line = m.mode === "recall"
       ? t("ags.mem_recall", { kb: nf(Math.round((m.chars || 0) / 102.4) / 10), n: nf(m.passages) })
       : t("ags.mem_docs", { n: nf(m.passages) });
-    var explain = esc(t("ags.mem_info", { core: nf(m.core_max), e: nf(m.enriched), n: nf(m.passages), u: nf(m.used) }));
     return '<div class="pd-mem">' +
       '<div class="pd-mem-row">' + ic("search") + '<span class="pd-mem-txt">' + esc(line) + "</span>" +
-        (I ? I.btn(t("info.more")) : "") + "</div>" +
-      (I ? I.body(explain) : "") +
+        (JI ? JI.btn(t("info.more")) : "") + "</div>" +
+      (JI ? JI.body(esc(t("ags.mem_info", { core: nf(m.core_max), e: nf(m.enriched), n: nf(m.passages),
+                                           u: nf(m.used) }))) : "") +
       (m.overflow > 0 ? '<div class="pd-mem-row pd-mem-warn">' + ic("triangle-alert") + "<span>" +
         esc(t("ags.mem_overflow", { x: nf(m.overflow) })) + "</span></div>" : "") +
       "</div>";
