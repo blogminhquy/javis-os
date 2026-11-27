@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.655.0] - 2026-11-27
+### Added
+- **Clicking "the bot needs a human" opens that customer's chat** on the Inbox page, so you no longer look for them while they wait.
+- **Every bot has a "Hard question in a private chat: stay quiet and tell me" tick**, Messenger and Zalo OA bots included. Before, only bots with groups could turn it on, and saving the form switched it off again.
+- **Bots wait for the customer to finish, then answer once** on every channel (Messenger, Zalo OA, Telegram, WhatsApp...), as personal Zalo already did. A customer tapping a few quick replies gets one combined answer. Set the seconds on the bot form, 5 by default.
+- **Turn off the "⚙ ... · 12s" tool line** under answers on Telegram, Zalo and all your chat channels, with one tick on the Channels page.
+
 ## [0.654.0] - 2026-11-27
 ### Added
 - **Rename a chat right in Chatbot.** A "Rename" item in the "..." menu and a pencil next to the name in the Info panel.

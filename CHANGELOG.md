@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.655.0] - 2026-11-27
+### Thêm mới
+- **Bấm thông báo "bot cần người thật" là mở thẳng cuộc chat của khách** ở trang Hội thoại, không phải tự đi tìm trong lúc khách chờ.
+- **Mọi bot đều có ô "Câu khó ở chat riêng: im lặng và báo tôi"**, kể cả bot Messenger và Zalo OA. Trước đây chỉ bot có nhóm mới bật được, và bấm Lưu form còn làm mất thiết lập này.
+- **Bot chờ khách nhắn xong rồi mới trả lời một lần** trên mọi kênh (Messenger, Zalo OA, Telegram, WhatsApp...), như Zalo cá nhân đã làm. Khách bấm vài nút trả lời nhanh liền nhau thì nhận một tin gộp. Số giây chỉnh ở form bot, mặc định 5.
+- **Tắt được dòng công cụ "⚙ ... · 12s"** dưới câu trả lời trên Telegram, Zalo và mọi kênh chat của bạn, bằng một ô ở trang Kênh.
+
 ## [0.654.0] - 2026-11-27
 ### Thêm mới
 - **Đổi tên cuộc chat ngay trong Chatbot.** Mục "Đổi tên" ở menu "..." và nút bút chì cạnh tên trong khung Thông tin.
