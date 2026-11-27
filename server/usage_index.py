@@ -30,6 +30,7 @@ from pathlib import Path
 from config import STATE_DIR
 import session_brain   # {session_id: brain} - nhan du an dung cho phien Javis (cwd luon la goc project)
 import usage_parsers as up
+import usage_waste
 
 # Múi giờ để cắt NGÀY của thống kê. Đọc từ cấu hình qua `localefmt`, KHÔNG còn là hằng số.
 #
@@ -53,6 +54,8 @@ BACKGROUND_SHARE = 0.25         # hoat dong ngam chiem qua % token
 EXPENSIVE_SHARE = 0.5           # opus chiem qua % token
 SESSION_BLOAT = 1_000_000       # 1 phien nap qua ngan nay token input
 SPIKE_RATIO = 1.5               # token/ngay ky nay gap prev qua ngan nay lan
+COLD_WASTE_PCT = 5.0            # cache rebuilt after a long break, % of Claude input tokens (usage_waste.py)
+SWITCH_WASTE_PCT = 3.0          # cache rebuilt after a model switch, same base
 
 DB_PATH = STATE_DIR / "usage_index.db"
 _EVENTS_PATH = STATE_DIR / "usage-events.jsonl"
@@ -967,6 +970,8 @@ def _summary_that(period: str = "this_month", provider: str = None, project: str
     try:
         rows = _fetch_rows(conn, cs_s, ce_s, provider, project)
         tokens_prev = _sum_tokens(conn, ps_s, pe_s, provider, project)
+        waste = (_waste(conn, cs_s, ce_s, project) if provider in (None, "", "all", "claude")
+                 else usage_waste.classify([], cs_s, ce_s))
         gaps = 0
         if provider in (None, "", "all", "claude"):
             where, args = "day BETWEEN ? AND ?", [cs_s, ce_s]
@@ -1034,7 +1039,38 @@ def _summary_that(period: str = "this_month", provider: str = None, project: str
         "by_model": _group(rows, "model", prices),
         "by_project": _group(rows, "project", prices),
         "timeseries": [series[k] for k in sorted(series)],
+        "waste": waste,
     }
+
+
+def _waste(conn, start: str, end: str, project=None) -> dict:
+    """The "waste" block of the summary: Claude Code cache rebuilt after a long break or a model switch, and the
+    share of input in long contexts (usage_waste.py). Read from the per-request rows, one day earlier than the
+    period so the first request of the period still has the request before it. Never raises: a missing JSON1
+    extension or a broken row only leaves the block empty."""
+    try:
+        before = (date.fromisoformat(start) - timedelta(days=1)).isoformat()
+        try:
+            rows = conn.execute("SELECT payload FROM usage_cli_requests "
+                                "WHERE json_extract(payload, '$.day') BETWEEN ? AND ?", (before, end)).fetchall()
+        except sqlite3.OperationalError:
+            rows = conn.execute("SELECT payload FROM usage_cli_requests").fetchall()
+        events = []
+        for (payload,) in rows:
+            try:
+                ev = json.loads(payload)
+            except (TypeError, ValueError):
+                continue
+            day = str(ev.get("day") or "")
+            if not (before <= day <= end):
+                continue
+            if project and ev.get("project") != project:
+                continue
+            events.append(ev)
+        return usage_waste.classify(events, start, end)
+    except Exception as e:  # noqa: BLE001 - the page must open even if this block cannot be built
+        print(f"[usage_index] waste: {type(e).__name__}: {e}", file=sys.stderr)
+        return usage_waste.classify([], start, end)
 
 
 def _fmt_tok(n: int) -> str:
@@ -1087,6 +1123,26 @@ def insights(period: str = "this_month", today: date = None) -> list:
                     "title": localefmt.chu("Có phiên phình to (%s token vào)", "A session has grown large (%s input tokens)") % _fmt_tok(row[1]),
                     "detail": localefmt.chu("Một phiên nạp %s token đầu vào. Cân nhắc tách phiên để giảm chi phí ngữ cảnh.",
                                             "One session loaded %s input tokens. Consider splitting the session to cut context cost.") % _fmt_tok(row[1])})
+
+    w = s.get("waste") or {}
+    cold = w.get("cold") or {}
+    if (cold.get("pct") or 0) >= COLD_WASTE_PCT:
+        out.append({"code": "cache_cold", "level": "warn",
+                    "title": localefmt.chu("Cache nguội ngốn %.0f%% token vào Claude", "Cold cache took %.0f%% of Claude input tokens")
+                    % cold["pct"],
+                    "detail": localefmt.chu("%d lần quay lại chat sau hơn 1 giờ nghỉ phải đọc lại cả mạch (%s token). Javis tự mở mạch mới "
+                                            "cho chat dài sau khi nghỉ; muốn giữ mạch thì bật Giữ ấm bộ nhớ đệm trong Đặt ngân sách.",
+                                            "%d times a chat was resumed after more than an hour and re-read its whole thread (%s tokens). "
+                                            "Javis opens a fresh thread for long chats after a break; to keep the thread, switch on cache keep-warm under Set a budget.")
+                    % (cold.get("count") or 0, _fmt_tok(cold.get("tokens") or 0))})
+    switch = w.get("model_switch") or {}
+    if (switch.get("pct") or 0) >= SWITCH_WASTE_PCT:
+        out.append({"code": "cache_model_switch", "level": "info",
+                    "title": localefmt.chu("Đổi model giữa chat tốn %.0f%% token vào Claude", "Switching models mid-chat cost %.0f%% of Claude input tokens")
+                    % switch["pct"],
+                    "detail": localefmt.chu("Mỗi model có bộ nhớ đệm riêng, đổi model là đọc lại cả mạch (%d lần, %s token). Chọn model trước khi bắt đầu chat.",
+                                            "Each model has its own cache, so a switch re-reads the whole thread (%d times, %s tokens). Pick the model before the chat starts.")
+                    % (switch.get("count") or 0, _fmt_tok(switch.get("tokens") or 0))})
 
     prev = k["tokens_prev"]
     if prev > 0 and total > 0:

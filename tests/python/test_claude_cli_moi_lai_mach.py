@@ -35,7 +35,12 @@ src = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
 # Khoanh vùng nhánh anthropic-cli: từ marker nhánh tới chỗ gửi khung response của nó.
 i0 = src.find("PROVIDER anthropic-cli")
 check("tìm thấy nhánh anthropic-cli", i0 > 0)
-vung = src[i0:i0 + 7000]   # 2026-11-27: the turn's skill suggestions added three lines to this lane
+# The region ends where the lane defines its engine call, right after the seeding code. It used to be a fixed 6000
+# characters, then 7000 (skill suggestions added three lines), and broke each time a line was added near the top of
+# the lane (2026-11-27).
+i1 = src.find("async def _consume_claude", i0)
+check("tìm thấy cuối vùng mồi lại (_consume_claude)", i1 > i0)
+vung = src[i0:i1]
 
 # 1. BẤT BIẾN CHÍNH: bootstrap gate theo "không có mạch", không phải "vừa xoay".
 i_gate = vung.find("if not cli.session_id:")

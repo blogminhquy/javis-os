@@ -48,6 +48,7 @@ class _Window:
     prefix_tokens: int = 0
     pings: int = 0
     stopped: str = ""
+    last_warm_at: float = 0.0
 
 
 @dataclass
@@ -111,7 +112,18 @@ class KeepWarm:
                 w.stopped = str(res.get("reason") or "ping failed")[:200]
             elif not ping_was_warm(int(res.get("cache_read") or 0), int(res.get("cache_write") or 0)):
                 w.stopped = "cold"
+            else:
+                w.last_warm_at = w.last_ping_at
         return sent
+
+    def last_warm(self, key: str) -> float:
+        """When this chat's cache was last known warm: its last real turn, or a later ping that READ the prefix.
+        0 when the chat has no window (keep-warm off, restarted server, another engine). The cold-cache rule
+        (compaction.cold_cache_rotates) asks this so it never drops a thread that keep-warm kept alive."""
+        w = self.windows.get(key)
+        if w is None:
+            return 0.0
+        return max(w.last_real_at, w.last_warm_at)
 
     def status(self) -> dict:
         return {"enabled": bool(self.enabled()), "windows": len(self.windows),

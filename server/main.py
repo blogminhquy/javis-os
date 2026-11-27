@@ -17129,6 +17129,60 @@ _KEEPWARM = cache_keepwarm.KeepWarm(
 )
 
 
+def _cold_cache_decision(store, conv_sid: str, context_tokens, row: dict, keepwarm: bool = False) -> dict:
+    """The cold-cache rule for one subscription chat turn (compaction.cold_cache_rotates).
+
+    Returns {} to keep the native thread, or {"idle_min", "saving"} when the thread should be re-seeded from the
+    transcript because its cache has gone cold. Idle time runs from the newest assistant message, or from the last
+    warm keep-warm ping when `keepwarm` (only Claude Code chats have keep-warm windows). Env `JAVIS_COLD_ROTATE=0`
+    switches the rule off for a machine that wants the old behaviour; there is no setting on screen, by design.
+    Never raises: any failure keeps the thread."""
+    if str(os.environ.get("JAVIS_COLD_ROTATE", "1")).strip().lower() in ("0", "false", "off", "no"):
+        return {}
+    try:
+        last_reply, chars = store.reply_activity(conv_sid)
+        last = max(float(last_reply or 0), _KEEPWARM.last_warm(conv_sid) if keepwarm else 0.0)
+        if last <= 0:
+            return {}
+        idle = time.time() - last
+        if not compaction.cold_cache_rotates(context_tokens, idle, chars, msg_count=(row or {}).get("msg_count"),
+                                             rotated_at=(row or {}).get("thread_rotated_msg")):
+            return {}
+        return {"idle_min": int(idle // 60), "saving": compaction.cold_cache_saving(context_tokens, chars)}
+    except Exception as e:  # noqa: BLE001
+        print(f"[cold-cache] {type(e).__name__}: {e}", file=sys.stderr)
+        return {}
+
+
+def _cold_cache_note(cold: dict, context_tokens) -> str:
+    """The progress line shown in the chat when the cold-cache rule opened a new thread."""
+    hours = max(1, round((cold.get("idle_min") or 0) / 60))
+    return localefmt.chu(
+        f"⚙ Chat đã nghỉ khoảng {hours} giờ nên bộ nhớ đệm đã nguội. Javis mở mạch mới từ bản ghi hội thoại "
+        f"thay vì đọc lại cả mạch {int(context_tokens or 0):,} token (đỡ khoảng {int(cold.get('saving') or 0):,} token).",
+        f"⚙ The chat was idle for about {hours} h, so its cache went cold. Javis started a new thread from the saved "
+        f"conversation instead of re-reading the whole {int(context_tokens or 0):,}-token thread "
+        f"(about {int(cold.get('saving') or 0):,} tokens saved).")
+
+
+async def _cold_cache_rotate(ws, store, conv_sid: str, runtime_trace, engine: str, context_tokens, row: dict,
+                             keepwarm: bool = False) -> bool:
+    """Apply the cold-cache rule to one subscription lane: decide, mark the rotation, record why, and tell the chat.
+    Returns True when the caller must drop its native thread id (each lane clears its own column). Kept out of the
+    turn handler so the lanes stay short (tests/python/test_claude_cli_moi_lai_mach.py reads the Claude lane by size)."""
+    cold = await asyncio.to_thread(_cold_cache_decision, store, conv_sid, context_tokens, row, keepwarm)
+    if not cold:
+        return False
+    await asyncio.to_thread(store.mark_thread_rotated, conv_sid)
+    _CONTEXT_RUNTIME.record_runtime_event(
+        runtime_trace, "thread.rotated",
+        {"engine": engine, "reason": "cold_cache", "last_input_tokens": int(context_tokens or 0),
+         "idle_min": cold.get("idle_min", 0), "expected_saving": cold.get("saving", 0)})
+    await ws.send_text(json.dumps({"type": "tool_call", "tool": "javis_nen_mach",
+                                   "content": _cold_cache_note(cold, context_tokens)}))
+    return True
+
+
 @app.get("/cache-keepwarm")
 async def cache_keepwarm_get():
     return {"ok": True, "window_min": int(_keepwarm_cfg().get("window_min") or cache_keepwarm.DEFAULT_WINDOW_MIN),
@@ -22505,6 +22559,15 @@ async def _chat_socket(ws):
                 _codex_do = _row0.get("last_context_provider") == "codex"
                 _codex_ctx = int((_row0.get("last_context_input_tokens") if _codex_do
                                   else _row0.get("last_input_tokens")) or 0)
+                # 2026-11-27: the cold-cache rule, same as the Claude Code lane. OpenAI's prompt cache does not outlive
+                # an hour of idle either, so a long thread resumed after a break is read again at full price.
+                # Only a MEASURED thread size (_codex_do): the turn-total fallback sums every request of a tool loop.
+                if stored_codex_thread and _codex_do and not compaction.nen_mach_thue_bao(
+                        _codex_ctx, msg_count=_row0.get("msg_count"), rotated_at=_row0.get("thread_rotated_msg")) \
+                        and await _cold_cache_rotate(ws, store, conv_sid, runtime_trace, "codex", _codex_ctx, _row0):
+                    stored_codex_thread = ""
+                    _first_out["rotated"] = True
+                    await asyncio.to_thread(store.clear_codex_thread_id, conv_sid)
                 if stored_codex_thread and compaction.nen_mach_thue_bao(
                         _codex_ctx, msg_count=_row0.get("msg_count"),
                         rotated_at=_row0.get("thread_rotated_msg")):
@@ -23063,6 +23126,12 @@ async def _chat_socket(ws):
                 _cli_xoay_mach = bool(cli.session_id) and compaction.nen_mach_thue_bao(
                     _claude_context, msg_count=_row0.get("msg_count"),
                     rotated_at=_row0.get("thread_rotated_msg"))
+                # 2026-11-27 cold-cache rule (compaction.cold_cache_rotates), on a MEASURED thread size only.
+                if (cli.session_id and not _cli_xoay_mach and _row0.get("last_context_provider") == "claude-code"
+                        and await _cold_cache_rotate(ws, store, conv_sid, runtime_trace, "claude-code",
+                                                     _claude_context, _row0, True)):
+                    cli.session_id = None
+                    _first_out["rotated"] = True
                 if _cli_xoay_mach:
                     cli.session_id = None
                     _first_out["rotated"] = True
