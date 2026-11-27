@@ -11,6 +11,10 @@ The first time a partner is seen its read_at is set to now, so an existing chat 
 filed as read and without a push (server/main.py `_bo_vao_hom_thu`).
 
 Stored in <STATE_DIR>/agent_notify.json, small and rewritten atomically.
+
+2026-11-27: only the mute still matters. The unread count of a partner's row is now read from its chats' own read marks
+(SessionStore.channel_unread), the same marks behind the red dots of its history: `read_at` here cleared the count as
+soon as any one chat of the partner was opened, while its other chats kept their dots.
 """
 from __future__ import annotations
 

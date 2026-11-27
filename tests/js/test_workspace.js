@@ -214,6 +214,8 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
     anTheMini() {}, hienTheMini() {},
     // 0.205.0: the unread pill and the muted mark are drawn by helpers outside the cut too.
     chuaDoc: () => 0, tinHtml: () => "", soTinHtml: () => "",
+    // 2026-11-27: the dot on the filter button when it hides an unread row, drawn by a helper outside the cut.
+    drawFilterUnread() {}, drawTabUnread() {}, tabDotHtml: () => "",
     esc: (s) => String(s == null ? "" : s), t: (k) => k, ic: () => "<svg></svg>", avatar: () => "<i></i>",
     localStorage: { getItem: (k) => (k in kho ? kho[k] : null), setItem(k, v) { kho[k] = String(v); } },
     document: { getElementById: () => null },

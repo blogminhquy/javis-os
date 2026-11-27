@@ -25014,8 +25014,37 @@ def sessions_unread_summary(brain: str = Query(None), skip: str = Query("")):
     """How many chats have a reply the owner has not read, per rail entry (owner, 2026-11-19: "answers of partners,
     chats and teams need no notification, a red dot on the menu is enough"). `chat`: chats of the Chat page;
     `workspace`: chats with a partner or a workflow (Partners page). Teams count on their own (`GET /teams/unread`).
-    `skip`: chats still running or open on screen, not counted (_unread_skip)."""
-    return {"ok": True, **get_store().unread_summary(_brain_keys(brain), skip=_unread_skip(skip))}
+    `skip`: chats still running or open on screen, not counted (_unread_skip).
+
+    2026-11-27: `workspace` counts only the chats the Partners page can show a dot for (_partner_unread): the chats of
+    an assistant or a workflow that still exists in this brain. A dot left by a deleted assistant or an old Coding chat
+    lit the rail with nothing on the page to click."""
+    def _do():
+        out = get_store().unread_summary(_brain_keys(brain), skip=_unread_skip(skip))
+        pu = _partner_unread(brain, _unread_skip(skip))
+        out["workspace"] = sum(v["chats"] for kind in ("agents", "workflows") for v in pu[kind].values())
+        return out
+    return {"ok": True, **_do()}
+
+
+def _partner_unread(brain, skip=None) -> dict:
+    """{"agents": {slug: {chats, n}}, "workflows": {slug: {chats, n}}}: unread chats and replies per assistant and per
+    workflow of this brain, read from each chat's own read mark (SessionStore.channel_unread), so a row's count and the
+    red dots of its history always agree. Assistants and workflows whose file is gone are left out (no row to show)."""
+    root = _brain_key(brain)
+    out = {"agents": {}, "workflows": {}}
+    wf_dir = None
+    for ch, v in get_store().channel_unread(_brain_keys(brain), ("agent:", "workflow:"), skip=skip).items():
+        kind, slug = ch.split(":", 1)
+        if kind == "agent":
+            if javis_core.is_core_slug(slug) or _agent_md_path(root, slug):
+                out["agents"][slug] = v
+        elif skill_router.valid_file_slug(slug):
+            if wf_dir is None:
+                wf_dir = _workflows_dir(root)
+            if (wf_dir / f"{slug}.md").is_file():
+                out["workflows"][slug] = v
+    return out
 
 
 @app.get("/sessions/{session_id}")
@@ -35270,24 +35299,36 @@ _AGENT_NOTIFY = agent_notify.AgentNotify(lambda: cfgmod.STATE_DIR)
 
 
 @app.get("/agents/unread")
-async def agents_unread(brain: str = "brain"):
-    """{slug: {n, last_at, muted_until}} for every partner of this brain that has a chat: the unread count on its row,
-    the time of its newest message (the list sorts by it, so a partner just written to moves to the top) and its mute."""
+async def agents_unread(brain: str = "brain", skip: str = ""):
+    """{slug: {n, chats, last_at, muted_until}} for every partner of this brain that has a chat: the unread replies on its
+    row, how many of its chats carry a red dot, the time of its newest message (the list sorts by it, so a partner just
+    written to moves to the top) and its mute. `workflows`: {slug: {n, chats}} for the workflow list.
+
+    2026-11-27 (owner: "lịch sử hội thoại của agent có dấu chấm đỏ, nhưng agent đấy lại không có", and the Partners rail
+    dot then pointed at nothing): the counts come from each chat's own read mark, the same one behind the dots of the
+    history column (_partner_unread). The old per-partner read mark (agent_notify.py) went to "all read" as soon as ANY
+    chat of the partner was opened, while its other chats kept their dots. `skip`: chats running or open on screen."""
     root = _brain_key(brain)
 
     def _do():
         store = get_store()
         slugs = [ch.split(":", 1)[1] for ch in store.moc_cap_nhat_theo_kenh(_brain_keys(brain), "agent:")]
         recs = _AGENT_NOTIFY.records(root, slugs)
-        act = store.agent_activity(_brain_keys(brain), {s: r["read_at"] for s, r in recs.items()})
-        return {"ok": True, "agents": {s: {"n": act.get(s, {}).get("n", 0), "last_at": act.get(s, {}).get("last_at", 0),
-                                           "muted_until": recs[s]["muted_until"]} for s in slugs}}
+        act = store.agent_activity(_brain_keys(brain), {s: 0 for s in slugs}, count=False)
+        pu = _partner_unread(brain, _unread_skip(skip))
+        agents = {}
+        for s in slugs:
+            u = pu["agents"].get(s) or {}
+            agents[s] = {"n": int(u.get("n") or 0), "chats": int(u.get("chats") or 0),
+                         "last_at": act.get(s, {}).get("last_at", 0), "muted_until": recs[s]["muted_until"]}
+        return {"ok": True, "agents": agents, "workflows": pu["workflows"]}
     return await asyncio.to_thread(_do)
 
 
 @app.post("/agents/opened")
 async def agents_opened(brain: str = Form("brain"), slug: str = Form(...)):
-    """The owner has this partner's chat open: its messages up to now are read. Other open tabs clear the count too."""
+    """Kept for dashboards from before 2026-11-27, which call it when a partner's chat opens. It no longer moves the
+    unread count (that comes from each chat's own read mark, see agents_unread); other open tabs just read it again."""
     slug = str(slug or "").strip()
     if not slug or "|" in slug:
         return {"ok": False, "error": "slug"}

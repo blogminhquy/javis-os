@@ -117,7 +117,7 @@
   // `can` (0.175.0, chỉ trợ lý): hàm báo mục nào đang CHỜ BẠN (có việc cần người duyệt hay trả lời). Những mục đó lên
   // một khối riêng đứng TRÊN CẢ khối ghim: chủ repo 16/10/2026 thấy thứ tự "không phù hợp chút nào", việc đang đợi mình
   // nằm lẫn giữa danh sách theo giờ chat. Mỗi mục vẫn chỉ hiện một lần.
-  function gomNhom(ds, nhomLoc, nhomTrong, can) {
+  function gomNhom(ds, nhomLoc, nhomTrong, can, isUnread) {
     var ra = [];
     // Javis Core (0.185.0): its own first block, above "needs you" and the pinned ones, with no heading (the row
     // carries the System badge).
@@ -130,6 +130,14 @@
     var ghim = (ds || []).filter(function (x) { return x.pinned; });
     var thuong = (ds || []).filter(function (x) { return !x.pinned; });
     if (ghim.length) ra.push({ ghim: true, nhom: "", items: ghim });
+    // Unread rows (2026-11-27): a block under the pinned ones, out of their group, so the dot is never folded away.
+    if (typeof isUnread === "function") {
+      var unreadRows = thuong.filter(function (x) { return isUnread(x); });
+      if (unreadRows.length) {
+        ra.push({ unread: true, nhom: "", items: unreadRows });
+        thuong = thuong.filter(function (x) { return !isUnread(x); });
+      }
+    }
     if (nhomLoc) {
       if (thuong.length) ra.push({ ghim: false, nhom: nhomLoc, items: thuong, theoNhom: false, tieuDe: ra.length > 0 });
       return ra;
@@ -316,7 +324,8 @@
             // Huy hiệu việc theo slug (Đang làm, Cần bạn), tách khỏi công tắc Auto: Auto tắt vẫn có thể có việc Đang làm.
             jc: {},
             // 0.205.0: unread count, newest message time and mute per partner (GET /agents/unread).
-            un: {},
+            // 2026-11-27: unWf, the same count per workflow (the `workflows` part of that answer).
+            un: {}, unWf: {},
             // Tab cột phải NHỚ RIÊNG theo loại. Trợ lý mở ở Lịch sử (chốt 16/09, xem TAB_PHAI);
             // quy trình mở ở Cài đặt vì nút Chạy nằm ở đó (chủ dự án chốt 17/09). Dùng chung
             // một ô nhớ thì vừa xem xong hội thoại của một trợ lý, sang quy trình là Lịch sử
@@ -406,52 +415,85 @@
   // 0.205.0 (owner, 17/10/2026): a private partner chat behaves like a messenger thread. The list re-sorts by the newest
   // message (yours, the partner's, or a background result), each row shows its unread count, and notifications can be
   // muted per partner. One request for the whole brain; a burst of events reads it once (same rule as loadJobCounts).
+  //
+  // 2026-11-27 (owner: "lịch sử hội thoại của agent có dấu chấm đỏ, nhưng agent đấy lại không có ... người dùng sẽ không
+  // biết là cái dấu đấy ẩn trong lịch sử hội thoại của agent nào"): the count is built by the server from the red dots
+  // of the history rows themselves (each chat's own read mark), so a partner shows a count exactly while some chat of
+  // its history shows a dot. Opening a partner no longer marks the partner read: opening a chat reads that chat
+  // (sessions-ui.js), its dot goes, and the count follows. Workflows get the same count. The chats running or open on
+  // screen are left out, as in the history column (unreadSkipQuery).
   var _unDang = false, _unLai = false, _henUn = null;
+  function unreadSkip() {
+    try { return (window.JavisChatSide && window.JavisChatSide.unreadSkipQuery && window.JavisChatSide.unreadSkipQuery()) || ""; }
+    catch (e) { return ""; }
+  }
   async function loadUnread() {
     var round = lanDung, b0 = brain();
     if (_unDang) { _unLai = true; return false; }
     _unDang = true;
     var d = null;
-    try { d = await api("/agents/unread?brain=" + encodeURIComponent(b0)); } catch (e) { d = null; } finally { _unDang = false; }
+    try { d = await api("/agents/unread?brain=" + encodeURIComponent(b0) + unreadSkip()); } catch (e) { d = null; } finally { _unDang = false; }
     if (_unLai) { _unLai = false; setTimeout(henUnread, 0); }
     if (round !== lanDung || b0 !== brain() || !d || !d.ok) return false;
     S.un = d.agents || {};
+    S.unWf = d.workflows || {};
     S.unBrain = b0;
     S.agents.forEach(function (a) {
       var u = S.un[a.slug];
       if (u && Number(u.last_at) > Number(a.last_chat_at || 0)) a.last_chat_at = Number(u.last_at);
     });
     S.agents = sapXep(S.agents, "last_chat_at");
-    var cur = S.loai === "agent" ? dangChon() : null;
-    if (cur && dangXemCongSu(cur.slug) && S.un[cur.slug] && S.un[cur.slug].n) daDoc(cur.slug);
     return true;
   }
   function henUnread() {
-    if (!active || S.loai !== "agent") return;
+    if (!active) return;
     if (_henUn) clearTimeout(_henUn);
     _henUn = setTimeout(function () {
       _henUn = null;
-      if (active && S.loai === "agent") loadUnread().then(function (ok) { if (ok && active && S.loai === "agent") veDanhSach(); });
+      if (active) loadUnread().then(function (ok) { if (ok && active) { if (S.el) drawTabUnread(S.el); veDanhSach(); } });
     }, 800);
   }
-  // The partner whose chat is on screen right now: its messages count as read.
-  function dangXemCongSu(slug) {
-    var c = S.loai === "agent" ? dangChon() : null;
-    return active && !!c && c.slug === slug && !(typeof document !== "undefined" && document.hidden);
+  // A red dot on the tab (Partners / Workflows) that holds an unread chat, and on the filter button when the filter or
+  // the search hides one: a dot anywhere on this page always leads to the row that has it (2026-11-27).
+  function tabDotHtml() {
+    var label = esc(t("sess.unread"));
+    return '<span class="cs-proj-unread ws-tab-unread" role="img" title="' + label + '" aria-label="' + label + '" hidden></span>';
   }
-  // Performance (2026-11-05): opening a partner whose count is known to be zero skips the POST, and with it the
-  // agent_read broadcast that made every open tab, this one included, fetch the unread counts again.
-  function coTinChuaDoc(slug) {
-    if (S.unBrain !== brain()) return true;   // counts not loaded for this brain yet: mark it read to be safe
-    var u = S.un[slug];
-    return !!(u && Number(u.n) > 0);
+  function drawTabUnread(el) {
+    if (!el) return;
+    el.querySelectorAll("[data-loai]").forEach(function (b) {
+      var dot = b.querySelector(".ws-tab-unread");
+      if (dot) dot.hidden = !hasUnread(b.dataset.loai);
+    });
   }
-  function daDoc(slug) {
-    if (S.un[slug]) S.un[slug].n = 0;
-    api("/agents/opened", { method: "POST", body: fd({ brain: brain(), slug: slug }) }).catch(function () {});
+  function unreadHidden() {
+    if (!S.q && !S.nhom) return false;
+    var hien = {};
+    loc(danhSach(), S.q, S.nhom, S.loai === "agent", S.rs).forEach(function (x) { hien[x.slug] = 1; });
+    return danhSach().some(function (x) { return !hien[x.slug] && chuaDoc(x.slug) > 0; });
+  }
+  function drawFilterUnread(el) {
+    var cur = el && el.querySelector("#wsGroup .cs-proj-cur");
+    if (!cur) return;
+    var dot = cur.querySelector(".ws-filter-unread"), can = unreadHidden();
+    if (can && !dot) {
+      var label = esc(t("ws.unread_hidden"));
+      cur.insertAdjacentHTML("beforeend", '<span class="cs-proj-unread ws-filter-unread" role="img" title="' + label +
+        '" aria-label="' + label + '"></span>');
+    } else if (!can && dot) dot.parentNode.removeChild(dot);
   }
   function tatDen(u) { var m = Number((u && u.muted_until) || 0); return m === -1 || m > Date.now() / 1000 ? m : 0; }
-  function chuaDoc(slug) { var u = S.un[slug]; return u && !dangXemCongSu(slug) ? Number(u.n) || 0 : 0; }
+  // Unread replies of one row. The chat open on screen is already left out by the server (unreadSkip), so the partner
+  // on screen still shows a count while ANOTHER chat of its history has a dot.
+  function chuaDoc(slug, loai) {
+    var u = ((loai || S.loai) === "workflow" ? S.unWf : S.un)[slug];
+    return u ? Number(u.n) || 0 : 0;
+  }
+  // Is anything unread in the agent list (or the workflow list)? Lights the dot on its tab.
+  function hasUnread(loai) {
+    var m = loai === "workflow" ? S.unWf : S.un, ds = loai === "workflow" ? S.workflows : S.agents;
+    return (ds || []).some(function (x) { var u = m && m[x.slug]; return !!(u && Number(u.n) > 0); });
+  }
   // The bell-off mark of a muted partner, in the row's corner cluster next to the time.
   function tinHtml(x) {
     return tatDen(S.un[x.slug]) ? '<span class="tm-muted" title="' + esc(t("ws.muted")) + '" aria-label="' + esc(t("ws.muted")) +
@@ -460,9 +502,10 @@
   // 2026-11-18 (owner: "đặt số tin chưa đọc sang bên trái đè lên cạnh dưới trái của avatar để tiết kiệm không gian"): the
   // unread pill (grey while muted) sits on the avatar's bottom left corner, on phone and desktop alike. The time keeps the
   // corner cluster to itself, and the collapsed avatar strip (where the cluster hides) still shows who has new messages.
-  function soTinHtml(x) {
-    var n = chuaDoc(x.slug);
-    return n ? '<span class="notification-badge tm-unread ws-av-unread' + (tatDen(S.un[x.slug]) ? " is-muted" : "") + '" title="' +
+  function soTinHtml(x, loai) {
+    var n = chuaDoc(x.slug, loai);
+    var tat = (loai || S.loai) === "workflow" ? 0 : tatDen(S.un[x.slug]);
+    return n ? '<span class="notification-badge tm-unread ws-av-unread' + (tat ? " is-muted" : "") + '" title="' +
       esc(t("ws.unread_n", { n: n })) + '">' + (n > 99 ? "99+" : String(n)) + "</span>" : "";
   }
   async function datTat(item, choice) {
@@ -538,7 +581,7 @@
     // them (listSoon), not once each.
     loadResonance().then(function (ok) { if (ok && active && S.loai === "agent") { if (S.el) veThanhNhom(S.el); listSoon(); veAuto(dangChon()); } });
     loadJobCounts().then(function (ok) { if (ok && active && S.loai === "agent") listSoon(); });
-    loadUnread().then(function (ok) { if (ok && active && S.loai === "agent") listSoon(); });
+    loadUnread().then(function (ok) { if (ok && active) { if (S.el) drawTabUnread(S.el); listSoon(); } });
     S.agents = sapXep(r[0].agents, "last_chat_at");
     S.workflows = sapXep(r[1].workflows.filter(function (w) { return w.status === "active"; }), "last_run_at");
     daTai = true;
@@ -571,8 +614,8 @@
     el.innerHTML =
       '<div class="wspage" id="wsPage">' +
         '<aside class="ws-left" id="wsLeft">' +
-          '<div class="ws-seg"><button type="button" data-loai="agent">' + ic("bot") + ' ' + esc(t("ws.tab_agent")) + '</button>' +
-          '<button type="button" data-loai="workflow">' + ic("workflow") + ' ' + esc(t("ws.tab_workflow")) + '</button></div>' +
+          '<div class="ws-seg"><button type="button" data-loai="agent">' + ic("bot") + ' ' + esc(t("ws.tab_agent")) + tabDotHtml() + '</button>' +
+          '<button type="button" data-loai="workflow">' + ic("workflow") + ' ' + esc(t("ws.tab_workflow")) + tabDotHtml() + '</button></div>' +
           // Ô tìm KHÔNG mở sẵn (chủ repo yêu cầu): cột trái chỉ rộng 210-260px, một ô nhập
           // nằm đó suốt ngày ăn mất một dòng mà chín trên mười lần người dùng không gõ gì.
           // Bấm nút kính lúp mới bung ra, gõ xong xoá hết rồi rời đi là nó tự thu lại.
@@ -1071,6 +1114,7 @@
   function veTrai() {
     var el = S.el; if (!el) return;
     el.querySelectorAll("[data-loai]").forEach(function (b) { b.classList.toggle("on", b.dataset.loai === S.loai); });
+    drawTabUnread(el);
     var lbl = el.querySelector(".ws-files-lbl"); if (lbl) lbl.textContent = nhanNutTaiLieu();
     var filesBtn = el.querySelector("#wsFiles");
     if (filesBtn) { filesBtn.title = nhanNutTaiLieu(); filesBtn.setAttribute("aria-label", nhanNutTaiLieu()); }
@@ -1118,6 +1162,7 @@
     var laTag = S.loai === "agent";
     var ds = loc(danhSach(), S.q, S.nhom, laTag, S.rs), chon = S.chon[S.loai];
     var host = el.querySelector("#wsList");
+    drawFilterUnread(el);
     var trong = (S.q || S.nhom || laTag) ? [] : docNhomTrong();
     // Not loaded yet (a tab switch or a toggle before the first list arrived): still loading, not "nothing here".
     if (!daTai && !ds.length) { anTheMini(); host.__wsHtml = null; host.innerHTML = dangTaiHtml("ws.loading_list"); return; }
@@ -1133,11 +1178,15 @@
     // một khối ghim và một khối còn lại, mỗi agent đúng một lần dù mang bao nhiêu tag.
     var html = "", daVe = 0, tong = 0;
     var can = laTag && S.jc ? function (x) { var c = S.jc[x.slug]; return !!(c && c.needs_you); } : null;
-    gomNhom(ds, laTag ? (S.nhom || "*") : S.nhom, trong, can).forEach(function (n) {
+    // 2026-11-27: unread rows form their own block right under the pinned ones, as in the history column ("Chưa đọc"),
+    // so a row with a dot is never on a later page or inside a folded group.
+    var isUnread = function (x) { return chuaDoc(x.slug) > 0; };
+    gomNhom(ds, laTag ? (S.nhom || "*") : S.nhom, trong, can, isUnread).forEach(function (n) {
       var thu = n.theoNhom && daThu(n.nhom);
       if (n.he) { /* no heading: the System badge on the row says it */ }
       else if (n.can) html += '<div class="ws-glabel ws-glabel-need">' + esc(t("ws.grp_needs")) + '</div>';
       else if (n.ghim) html += '<div class="ws-glabel">' + esc(t("ws.grp_pinned")) + '</div>';
+      else if (n.unread) html += '<div class="ws-glabel">' + esc(t("sess.unread")) + '</div>';
       else if (n.theoNhom) html += nhomHtml(n.nhom, n.items.length, thu);
       else if (n.tieuDe) html += '<div class="ws-glabel">' + esc(t("ws.grp_rest")) + '</div>';
       if (thu) return;
@@ -1297,14 +1346,14 @@
       ? window.JavisAgentJobs.statusOf(S.jc[x.slug]) : "";
     var title = laAgent ? [x.name, x.role || ""].concat(tg.length ? [t("ws.tags_aria") + ": " + tg.join(", ")] : [])
       .filter(Boolean).join("\n") : "";
-    var nTin = laAgent ? chuaDoc(x.slug) : 0;
+    var nTin = chuaDoc(x.slug, laAgent ? "agent" : "workflow");
     var info = laAgent ? agentInfoHtml(x, tg) : "";
     return '<div class="ws-item-wrap' + (x.pinned ? " ghim" : "") + (he ? " he" : "") + (coTt ? " co-tt" : "") + (nTin ? " has-unread" : "") +
       (laAgent ? " has-end" : "") + (info ? " has-info" : "") + '"' + (jst ? ' data-st="' + jst + '"' : "") + '>' +
       '<button type="button" class="ws-item' + (x.slug === chon ? " on" : "") + '" aria-pressed="' + (x.slug === chon) + '" data-slug="' + esc(x.slug) + '"' +
         (title ? ' title="' + esc(title) + '"' : "") + '>' +
-      '<span class="ws-item-ic">' + (laAgent ? avatar(x, 40) + soTinHtml(x)
-        : (chay ? ic("loader", { cls: "ic-spin", title: t("ws.running") }) : ic("workflow"))) + '</span>' +
+      '<span class="ws-item-ic">' + (laAgent ? avatar(x, 40) + soTinHtml(x, "agent")
+        : (chay ? ic("loader", { cls: "ic-spin", title: t("ws.running") }) : ic("workflow")) + soTinHtml(x, "workflow")) + '</span>' +
       '<span class="ws-item-text"><span class="ws-item-top"><strong>' + esc(x.name) + '</strong></span>' +
       (laAgent ? cardSubHtml(x, he) : "") +
       (phu ? '<small>' + esc(phu) + '</small>' : "") +
@@ -1783,7 +1832,8 @@
       chatReady(true);
       clearOpenError();
       luuViTri(id);
-      if (S.loai === "agent" && coTinChuaDoc(item.slug)) daDoc(item.slug);   // 0.205.0: opening the chat reads it
+      // 2026-11-27: opening the chat reads THAT chat only (sessions-ui.js marks it; the `session_read` that comes back
+      // recounts). The whole partner is no longer marked read here, which left dots on its other chats unexplained.
       if (S.loai === "workflow") veBuoc(item, tienDoHienTai(item));
       else ganCongHuong(item, id);
       return true;
@@ -2299,13 +2349,14 @@
       var ag = S.agents.filter(function (a) { return a.slug === S.sessionCuaPhien[sid]; })[0];
       if (ag) {
         ag.last_chat_at = Date.now() / 1000;
-        // 0.205.0: the partner just written to moves to the top, and its chat stays read while it is on screen.
+        // 0.205.0: the partner just written to moves to the top.
         S.agents = sapXep(S.agents, "last_chat_at");
-        if (dangXemCongSu(ag.slug)) daDoc(ag.slug);
         if (active) veDanhSach();
         if (ag.system) docLaiTenCore(ag);   // a new name saved in chat shows at once
       }
-    } else if (sid && S.loai === "agent") henUnread();
+    }
+    // A finished turn can leave a dot on a chat that is not on screen (2026-11-27: on any partner or workflow).
+    if (sid) henUnread();
     if (!sid || !S.tienDo[sid] || S.tienDo[sid].trang_thai !== "dang") return;
     apDung(S.tienDo[sid], { type: "stopped" });
     if (S.loai === "workflow") veDanhSach();
@@ -2385,12 +2436,12 @@
     window.addEventListener(ev, function (e) { if (!laDoiPhien(e)) henDemViec(); });
   });
   // 0.205.0: a message landed somewhere, or another tab read or muted a partner: read the unread counts again.
-  ["javis:sessions-changed", "javis:agent-read"].forEach(function (ev) {
+  // 2026-11-27: a chat read (here or in another tab), marked unread, or an answer saved anywhere moves them too. A plain
+  // chat switch still does not: the chat it opens, if unread, is marked read and its `session_read` recounts.
+  ["javis:sessions-changed", "javis:agent-read", "javis:session-read", "javis:chat-activity"].forEach(function (ev) {
     window.addEventListener(ev, function (e) { if (!laDoiPhien(e)) henUnread(); });
   });
   if (typeof document !== "undefined" && document.addEventListener) document.addEventListener("visibilitychange", function () {
-    if (document.hidden || !active || S.loai !== "agent") return;
-    var c = dangChon();
-    if (c && S.un[c.slug] && S.un[c.slug].n) { daDoc(c.slug); veDanhSach(); }
+    if (!document.hidden && active) henUnread();
   });
 })();
