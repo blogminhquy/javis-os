@@ -2407,6 +2407,26 @@
     if (inp) inp.placeholder = t("bar.input_ph");
   }
 
+  // 2026-11-27: how an assistant's memory reaches its prompt (server/agent_recall.py), drawn in its Learned tab
+  // (sessions-ui.js). Here, in the lazy partners group, to keep the start-up code small. Nothing for a small memory,
+  // one line when it is searched as needed, a warning line when the always-loaded rules no longer fit.
+  window.JavisMemStrip = function (m) {
+    if (!m || (m.mode !== "recall" && m.mode !== "docs")) return "";
+    var I = window.JavisInfo;
+    var nf = function (x) { return Number(x || 0).toLocaleString(); };
+    var line = m.mode === "recall"
+      ? t("ags.mem_recall", { kb: nf(Math.round((m.chars || 0) / 102.4) / 10), n: nf(m.passages) })
+      : t("ags.mem_docs", { n: nf(m.passages) });
+    var explain = esc(t("ags.mem_info", { core: nf(m.core_max), e: nf(m.enriched), n: nf(m.passages), u: nf(m.used) }));
+    return '<div class="pd-mem">' +
+      '<div class="pd-mem-row">' + ic("search") + '<span class="pd-mem-txt">' + esc(line) + "</span>" +
+        (I ? I.btn(t("info.more")) : "") + "</div>" +
+      (I ? I.body(explain) : "") +
+      (m.overflow > 0 ? '<div class="pd-mem-row pd-mem-warn">' + ic("triangle-alert") + "<span>" +
+        esc(t("ags.mem_overflow", { x: nf(m.overflow) })) + "</span></div>" : "") +
+      "</div>";
+  };
+
   window.JavisWorkspace = { gioNgan: gioNgan,
     // The partner whose chat is open here (2026-11-24): the pin bar above the chat names its answers after it.
     currentName: function () { var x = active ? dangChon() : null; return x ? String(x.name || x.slug || "") : ""; },
