@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.658.3] - 2026-11-27
+### Fixed
+- **The bot form shows every connected channel.** Picking channels when creating or editing a chatbot used to list only the open brain's channels, so a Page or bot connected in another brain could not be picked. Every brain now lists every channel; a channel another bot already answers still shows greyed out with that bot and its brain. Ticking another brain's channel into a bot moves the channel to the bot's brain, so that brain's inbox shows the chats the bot answers.
+
 ## [0.658.2] - 2026-11-27
 ### Fixed
 - **Every brain sees every connected Page.** The Facebook Messenger and Threads card on the Connections page used to list only the accounts of the open brain, so one brain showed some Pages and another brain showed others. Every brain now lists the same Pages, Threads accounts and saved apps. A newly connected Page is still saved under the open brain.
