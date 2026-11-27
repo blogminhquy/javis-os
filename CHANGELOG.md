@@ -6,6 +6,17 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.653.1] - 2026-11-27
+### Sửa lỗi
+- **Lịch do việc nền tạo không còn chen vào cuộc trò chuyện chẳng liên quan.** Trước đây, khi một luồng việc nền (ví dụ xử lý đơn POSCake) tạo lịch nhắc trong lúc anh đang chat chuyện khác, khung chat đó hiện các dòng "Đã tạo lịch · Hoàn tác", rồi tới giờ lại nhận cả thẻ "Nhắc hẹn". Giờ dòng "Đã tạo lịch" chỉ ghi những gì chính cuộc trò chuyện đó tạo, còn kết quả của lịch việc nền về hộp thư và Javis Core thay vì khung chat đang mở.
+- **Lịch tới giờ đã chạy hoặc bị tạm dừng không còn hiện thành "Đã gỡ lịch".** Chỉ lịch mà cuộc trò chuyện huỷ mới có dòng đó.
+
+## [0.653.0] - 2026-11-27
+### Thêm mới
+- **Kênh của gói có logo riêng.** Gói khai `logo_svg` là kênh hiện đúng logo ở trang Chatbot và Hội thoại. Logo được lọc sạch, chỉ giữ hình vẽ, bỏ script và liên kết ngoài.
+- **Form thêm tài khoản theo khai báo của gói.** Gói khai `TOKEN_FORM` (ô chữ, mật khẩu, danh sách chọn tải từ gói) thay cho một ô token trơn, có nút Tạo và Sao chép cho mã bí mật. Ô bí mật không bao giờ được đưa vào đường dẫn webhook. Form hiện ở cả lúc thêm lẫn lúc sửa tài khoản.
+- **Cảnh báo trả lời trùng.** Messenger đã trả lời Facebook và Instagram. Kênh của gói nối lại hai mạng đó thì các lựa chọn này để trống sẵn, chọn vào sẽ hiện cảnh báo rõ, và phải tích xác nhận mới lưu được. Máy chủ cũng chặn nếu chưa xác nhận. Tài khoản cũ vẫn lưu lại được, nhưng đổi sang tài khoản khác trên mạng đã có kênh lõi thì cũng phải xác nhận.
+
 ## [0.652.0] - 2026-11-27
 ### Cải thiện
 - **Thêm Fanpage không cần dán lại App secret.** Thẻ Facebook Messenger hiện các app đã dùng cho Trang đang nối. Bấm một app, để trống App secret rồi Đăng nhập Facebook là chọn thêm được Trang khác; Javis tự dùng App secret đã lưu. Danh sách chọn đánh dấu Trang đã nối và chỉ tick sẵn Trang mới, kèm hướng dẫn bấm Chỉnh sửa quyền truy cập khi Facebook chỉ trả lại Trang cũ.

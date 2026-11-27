@@ -448,8 +448,9 @@ def _turn_origin(vault_root: str) -> tuple:
     `chat` is `web:<session id>` on a dashboard turn, so the result goes back to the chat that asked. A partner chat
     never sees the channel block that teaches the model this id, and the job used to land in Javis Core, success and
     failure alike. With no turn at all (an engine that cannot carry it yet), the running-turn ledger names the chat
-    when exactly one chat of this brain is running (same rule as javis_task, 0.64.49). Any other turn (Kanban, a
-    chatbot, Telegram) keeps what the model passed. `assistant` is the slug of the Partners-page assistant of that
+    when exactly one chat of this brain is running and no background work runs there (same rule as javis_task,
+    0.64.49; owner 27/11/2026: an order flow's reminder landed in an unrelated chat that happened to be running).
+    Any other turn (Kanban, a chatbot, Telegram) keeps what the model passed. `assistant` is the slug of the Partners-page assistant of that
     chat, "" elsewhere: the job then runs as that assistant and the Tasks page files it under it."""
     try:
         import turn_context
