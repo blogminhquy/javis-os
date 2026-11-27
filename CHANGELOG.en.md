@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.653.1] - 2026-11-27
+### Fixed
+- **Schedules made by background work no longer show up in an unrelated chat.** Before, when a background flow (for example a POSCake order flow) created a reminder while you were chatting about something else, that chat got "Created schedule · Undo" lines and later the "Reminder" cards too. Now the "Created schedule" line lists only what that chat itself made, and a background job's reminder reports to the inbox and Javis Core instead of whichever chat is open.
+- **A schedule that fired or was paused no longer shows as "Removed schedule".** Only a schedule the chat cancelled gets that line.
+
 ## [0.653.0] - 2026-11-27
 ### Added
 - **Pack channels show their own logo.** A pack declaring `logo_svg` gets its logo on the Chatbot and Conversations pages. The SVG is sanitized: shapes only, no scripts or outside links.

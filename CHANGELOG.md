@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.653.1] - 2026-11-27
+### Sửa lỗi
+- **Lịch do việc nền tạo không còn chen vào cuộc trò chuyện chẳng liên quan.** Trước đây, khi một luồng việc nền (ví dụ xử lý đơn POSCake) tạo lịch nhắc trong lúc anh đang chat chuyện khác, khung chat đó hiện các dòng "Đã tạo lịch · Hoàn tác", rồi tới giờ lại nhận cả thẻ "Nhắc hẹn". Giờ dòng "Đã tạo lịch" chỉ ghi những gì chính cuộc trò chuyện đó tạo, còn kết quả của lịch việc nền về hộp thư và Javis Core thay vì khung chat đang mở.
+- **Lịch tới giờ đã chạy hoặc bị tạm dừng không còn hiện thành "Đã gỡ lịch".** Chỉ lịch mà cuộc trò chuyện huỷ mới có dòng đó.
+
 ## [0.653.0] - 2026-11-27
 ### Thêm mới
 - **Kênh của gói có logo riêng.** Gói khai `logo_svg` là kênh hiện đúng logo ở trang Chatbot và Hội thoại. Logo được lọc sạch, chỉ giữ hình vẽ, bỏ script và liên kết ngoài.
