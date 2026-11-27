@@ -11,8 +11,14 @@ Two steps, both plain rules so the result is the same every time and says why:
    notes, reminders; "standard" for everything else (marketing, writing, sales, customer care: what a customer
    reads decides a sale, so customer care is not put on the lightest line).
 2. `pick`: the first card in the owner's usage order that an assistant can run on, then the model of that tier on it.
-   Claude has one model line per tier (Opus, Sonnet, Haiku), so the tier picks the line. Every other card keeps the
-   model the owner set on it, and the tier only sets the thinking level. The usage order is never changed.
+   - Claude has one model line per tier (Opus, Sonnet, Haiku), the CLI's own aliases, so the tier picks the line.
+   - Every other card (ChatGPT through Codex, Antigravity, Grok Build, API keys) uses the two picks the main brain
+     made from that account's OWN model list (`model.auto_background`, auto_background.py): "light" for light work,
+     "mid" for standard work. Heavy work runs the model the owner set on the card. Owner, 27/11/2026: the same for
+     Codex, Antigravity and Grok Build, not only Claude Code. No model name is written here for these cards: their
+     names change faster than Javis ships (the rule auto_background.py already follows).
+   - A card with no picks yet keeps the model set on it for every tier; the tier still sets the thinking level.
+   The usage order is never changed.
 
 This module never imports main; main hands it the cards (`main._agent_model_cards`).
 """
@@ -105,11 +111,31 @@ def _family_model(models, family: str) -> str:
     return ""
 
 
+def _from_picks(tier: str, picks, models) -> str:
+    """The pick for `tier` on a card that is not Claude: "light" (or "mid" when there is no light one) for light work,
+    "mid" for standard work, "" for heavy work (the card's own model then). A pick no longer in the card's known list
+    is not used: the list changed since it was made."""
+    picks = picks if isinstance(picks, dict) else {}
+    if tier == "light":
+        want = [picks.get("light"), picks.get("mid")]
+    elif tier == "standard":
+        want = [picks.get("mid")]
+    else:
+        return ""
+    known = {str(m) for m in (models or ())}
+    for w in want:
+        w = str(w or "").strip()
+        if w and (not known or w in known):
+            return w
+    return ""
+
+
 def pick(tier: str, cards) -> dict:
     """{provider, model, tier} on the first card that has a model for `tier`, or {} when no card can run it.
 
-    `cards`: [{"provider", "model", "models"}] in the owner's usage order, only cards an assistant can run on;
-    `model` is the model the card runs (its own setting, or the name of its default), `models` its known list."""
+    `cards`: [{"provider", "model", "models", "picks"}] in the owner's usage order, only cards an assistant can run
+    on; `model` is the model the card runs (its own setting, or the name of its default), `models` its known list,
+    `picks` the {"light", "mid"} the main brain chose from that account's list (may be empty)."""
     tier = tier if tier in TIERS else "standard"
     for c in cards or ():
         prov = str((c or {}).get("provider") or "").strip()
@@ -120,7 +146,7 @@ def pick(tier: str, cards) -> dict:
         elif prov == "anthropic-api":
             model = _family_model(c.get("models"), CLAUDE_FAMILY[tier]) or str(c.get("model") or "")
         else:
-            model = str(c.get("model") or "")
+            model = _from_picks(tier, c.get("picks"), c.get("models")) or str(c.get("model") or "")
         model = model.strip()
         if model:
             return {"provider": prov, "model": model, "tier": tier}

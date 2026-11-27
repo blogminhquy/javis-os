@@ -3111,7 +3111,29 @@ async def _auto_background_tick(force: bool = False) -> dict:
         cfgmod.write_settings(cfg)
     if not auto:
         return {"ok": True, "reason": "manual"}
+    return await _refresh_model_picks(m, model_routing.main_provider(m), force, notify=True)
+
+
+async def _agent_picks_tick(force: bool = False) -> dict:
+    """27/11/2026 (owner: a new assistant on Codex, Antigravity or Grok Build gets a fitting model too): the light
+    and mid picks of MAIN's card also give a NEW assistant its model (agent_model_pick). With the background model on
+    Automatic, `_auto_background_tick` keeps them. With one picked by hand that tick stops, so this one keeps the same
+    picks, for assistants only: the background model is never touched and nobody is notified. Claude's cards need no
+    pick (their model lines are the CLI's own aliases)."""
+    if _AUTO_BG_BUSY[0]:
+        return {"ok": False, "reason": "busy"}
+    m = cfgmod.read_settings().get("model") or {}
+    if model_routing.background_auto(m):
+        return {"ok": True, "reason": "auto"}
     prov = model_routing.main_provider(m)
+    if not prov or prov == "anthropic-cli" or prov not in AGENT_PROVIDERS:
+        return {"ok": True, "reason": "no_pick_needed"}
+    return await _refresh_model_picks(m, prov, force, notify=False)
+
+
+async def _refresh_model_picks(m: dict, prov: str, force: bool, notify: bool) -> dict:
+    """Make the light and mid picks of one card again when its model list changed (auto_background.py). `notify`: tell
+    the owner the background model moved (only when the background model is on Automatic)."""
     state = dict(model_routing.background_picks(m, prov))
     now = time.time()
     if not prov or (not force and not auto_background.due(state, now)):
@@ -3143,7 +3165,7 @@ async def _auto_background_tick(force: bool = False) -> dict:
         _auto_background_save(prov, {"light": picks["light"], "mid": picks["mid"],
                                      "ladder": list(picks.get("ladder") or []), "sig": sig,
                                      "checked": now, "at": now})
-        if auto_background.changed(state, picks) and (picks["light"] or picks["mid"]):
+        if notify and auto_background.changed(state, picks) and (picks["light"] or picks["mid"]):
             await _notify_owner("", _auto_background_notice(prov, picks, model_routing.profile(m, prov)["model"]),
                                 kind="system", source="models", level="info", group="cost",
                                 dedup=f"auto-background:{prov}:{sig}")
@@ -3958,7 +3980,8 @@ def _agent_model_provider(model: str, provider: str = "") -> str:
 def _agent_model_cards(cfg=None) -> list:
     """Cards a NEW assistant can be given a model on (owner, 27/11/2026), in the usage order of the Models page:
     signed in, one an assistant runs on (AGENT_PROVIDERS), each with the model it runs (MAIN's model for MAIN, the
-    card's own setting otherwise, else the name of its default) and its known model list. Read only."""
+    card's own setting otherwise, else the name of its default), its known model list and its light and mid picks
+    (`model.auto_background`, made by the main brain from that account's own list). Read only."""
     cfg = cfg if cfg is not None else cfgmod.read_settings()
     mcfg = cfg.get("model") or {}
     view = {p["id"]: p for p in _providers_view(cfg) if p.get("configured") and p.get("cli_found") is not False}
@@ -3973,7 +3996,8 @@ def _agent_model_cards(cfg=None) -> list:
         model = str(model or "").strip() or _default_model_name(mcfg, prov)
         if prov == "openrouter":
             model = model or str(mcfg.get("openrouter_model") or "").strip()
-        out.append({"provider": prov, "model": model or "", "models": list(view[prov].get("models") or [])})
+        out.append({"provider": prov, "model": model or "", "models": list(view[prov].get("models") or []),
+                    "picks": dict(model_routing.background_picks(mcfg, prov))})
     return out
 
 
@@ -18310,6 +18334,8 @@ async def _start_scheduler():
                 #      A settings read on most ticks; the main brain is asked only when the list really changed.
                 if not _AUTO_BG_BUSY[0] and os.environ.get("JAVIS_AUTO_BACKGROUND_PAUSED") != "1":
                     asyncio.create_task(_auto_background_tick())
+                    # 27/11/2026: the same picks for new assistants when the background model was picked by hand.
+                    asyncio.create_task(_agent_picks_tick())
                 # 3c) Ngân sách token + báo cáo tuần. Nhịp RIÊNG 10 phút chứ không theo 30s:
                 #     mỗi lượt kiểm là một truy vấn sqlite cả tháng, chạy 30 giây một lần thì
                 #     chính cái đồng hồ đo tiền lại thành thứ tốn tài nguyên nhất.

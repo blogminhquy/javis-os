@@ -90,6 +90,24 @@ check("a level the assistant set is kept", "reasoning" not in amp.choose(
     {"name": "Coder", "group": "Lập trình", "reasoning": "low"}, "", [CLAUDE]))
 check("an assistant that already has a model is not touched", amp.choose({"model": "sonnet"}, "", [CLAUDE]) == {})
 
+# Codex, Antigravity and Grok Build (owner, 27/11/2026: not only Claude Code). Their picks come from the main brain
+# reading that account's own list (model.auto_background); the names here are made up on purpose.
+for prov, heavy, light, mid in (("openai-oauth", "gpt-9-terra", "gpt-9-luna", "gpt-9-vela"),
+                                ("antigravity-cli", "gem-9-pro-high", "gem-9-flash-low", "gem-9-flash-medium"),
+                                ("grok-cli", "grok-9", "grok-9-mini", "grok-9-fast")):
+    card = {"provider": prov, "model": heavy, "models": [heavy, light, mid],
+            "picks": {"light": light, "mid": mid, "ladder": [light, mid, heavy]}}
+    check(f"{prov}: heavy work runs the model set on the card", amp.pick("deep", [card])["model"] == heavy)
+    check(f"{prov}: standard work runs the card's mid pick", amp.pick("standard", [card])["model"] == mid)
+    check(f"{prov}: light work runs the card's light pick", amp.pick("light", [card])["model"] == light)
+check("no light pick: light work takes the mid pick",
+      amp.pick("light", [{"provider": "grok-cli", "model": "grok-9", "picks": {"mid": "grok-9-fast"}}])["model"]
+      == "grok-9-fast")
+check("a pick no longer in the card's list is not used (the list changed since)",
+      amp.pick("standard", [{"provider": "openai-oauth", "model": "gpt-9-terra", "models": ["gpt-9-terra"],
+                             "picks": {"mid": "gpt-9-gone"}}])["model"] == "gpt-9-terra")
+check("no picks yet: the card's own model for every tier", amp.pick("light", [CODEX])["model"] == "gpt-5.5")
+
 # The machine's cards, in the usage order, as main reads them.
 VIEW = [{"id": "anthropic-cli", "configured": True, "cli_found": True, "models": ["fable", "opus", "sonnet", "haiku"]},
         {"id": "openai-oauth", "configured": True, "cli_found": True, "models": []},
@@ -119,6 +137,63 @@ saved_view = main._providers_view
 main._providers_view = lambda cfg: [{"id": "gemini", "configured": False}]
 check("no card an assistant can run: it stays on 'Default'", main._auto_agent_model({"name": "Coder"}) == {})
 main._providers_view = saved_view
+
+# With ChatGPT first, its picks decide: they are read from settings, where the main brain stored them.
+cfgmod.update_settings({"model": {"order": ["openai-oauth", "anthropic-cli", "groq", "gemini"],
+                                  "main": {"provider": "openai-oauth", "model": "gpt-5.5"},
+                                  "auto_background": {"openai-oauth": {"light": "gpt-5.5-luna", "mid": "gpt-5.5-vela",
+                                                                       "ladder": ["gpt-5.5-luna", "gpt-5.5-vela"]}}}})
+check("ChatGPT first: a translator gets ChatGPT's light pick at a low level",
+      main._auto_agent_model({"name": "Người phiên dịch"}) ==
+      {"model": "gpt-5.5-luna", "model_provider": "openai-oauth", "reasoning": "low"},
+      main._auto_agent_model({"name": "Người phiên dịch"}))
+check("ChatGPT first: a marketer gets ChatGPT's mid pick",
+      main._auto_agent_model({"name": "Chuyên viên quảng cáo", "group": "Marketing"}) ==
+      {"model": "gpt-5.5-vela", "model_provider": "openai-oauth"})
+check("ChatGPT first: a coder gets the card's own model, thinking harder",
+      main._auto_agent_model({"name": "Coder", "group": "Lập trình"}) ==
+      {"model": "gpt-5.5", "model_provider": "openai-oauth", "reasoning": "high"})
+
+# Picks kept for assistants when the background model was picked by hand (it stops the background tick).
+import asyncio  # noqa: E402
+asked = []
+
+
+async def _fake_models(prov):
+    return [{"id": "gpt-5.5", "description": "most capable"}, {"id": "gpt-5.5-luna", "description": "fast, low cost"},
+            {"id": "gpt-5.5-vela", "description": "balanced"}]
+
+
+async def _fake_ask(prompt):
+    asked.append(prompt)
+    return '{"ladder": ["gpt-5.5-luna", "gpt-5.5-vela", "gpt-5.5"], "light": "gpt-5.5-luna", "mid": "gpt-5.5-vela"}'
+
+
+main._auto_background_models, main._auto_background_ask = _fake_models, _fake_ask
+cfgmod.update_settings({"model": {"auxiliary": {"provider": "openai-oauth", "model": "gpt-5.5", "auto": False},
+                                  "auto_background": {"openai-oauth": {}}}})
+r = asyncio.run(main._agent_picks_tick(force=True))
+mm = cfgmod.read_settings()["model"]
+check("background picked by hand: the picks are still made, for new assistants",
+      r.get("reason") == "picked" and len(asked) == 1
+      and (mm.get("auto_background") or {}).get("openai-oauth", {}).get("mid") == "gpt-5.5-vela", r)
+check("...and the hand-picked background model is not touched",
+      mm["auxiliary"].get("model") == "gpt-5.5" and mm["auxiliary"].get("auto") is False, mm.get("auxiliary"))
+r = asyncio.run(main._agent_picks_tick())
+check("the list did not change: the main brain is not asked again", len(asked) == 1, r)
+cfgmod.update_settings({"model": {"auxiliary": {"auto": True}}})
+r = asyncio.run(main._agent_picks_tick(force=True))
+check("background on Automatic: its own tick keeps the picks, this one does nothing",
+      r.get("reason") == "auto" and len(asked) == 1, r)
+cfgmod.update_settings({"model": {"auxiliary": {"auto": False}, "order": ["anthropic-cli", "openai-oauth", "groq",
+                                                                           "gemini"],
+                                  "main": {"provider": "anthropic-cli", "model": "opus"}}})
+r = asyncio.run(main._agent_picks_tick(force=True))
+check("Claude Code first: nothing to pick (its lines are the CLI's own aliases)",
+      r.get("reason") == "no_pick_needed" and len(asked) == 1, r)
+src_main = (ROOT / "server" / "main.py").read_text(encoding="utf-8")
+check("the scheduler runs the assistants' picks next to the background ones",
+      "asyncio.create_task(_agent_picks_tick())" in src_main)
 
 # ============================================================
 # 3. Every way a new assistant appears
