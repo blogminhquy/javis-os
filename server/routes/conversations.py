@@ -474,7 +474,7 @@ def register(app, deps: ConversationsDeps):
                                  sort: str = "", account_ids: str = "", who: str = "", tags_any: str = "",
                                  tags_none: str = "", date_from: str = Query("", alias="from"),
                                  date_to: str = Query("", alias="to"), last_by: str = "", pinned: int = 0,
-                                 brain: str = "", kind: str = "", has_phone: int = 0):
+                                 brain: str = "", kind: str = "", has_phone: int = 0, network: str = ""):
         """Danh sách hội thoại mới nhất trước, kèm vài con số đầu trang (cùng bộ lọc).
 
         0.65.3: thêm `status` (unread | need_reply | human) và `chat_type` (group | private); mỗi hàng có `bot_name`;
@@ -502,13 +502,15 @@ def register(app, deps: ConversationsDeps):
         The quick row (owner, 2026-11-24): `kind` (message | comment, see `conversations._COMMENT_SQL`) and
         `has_phone=1` (the customer left a phone number; `has_contact` still means phone or email). The first page also
         returns `quick_counts` {message, comment, phone}: how many rows each choice would show with every other filter,
-        `who` included, so a number on the row is what tapping it lists."""
+        `who` included, so a number on the row is what tapping it lists.
+        #1633: `network` keeps the chats of one social network (instagram, tiktok...), whatever channel brought them;
+        `facets.networks` counts the chats of each network, for the Filter menu."""
         # The store work runs in a worker thread (owner, 2026-11-07: the Chatbot page loaded slowly): this list is asked
         # every 5 seconds, and done on the event loop it held up every other request of the server while it counted.
         others = channel_accounts.keys_of_other_brains(brain) if str(brain or "").strip() else []
         rows = await run_in_threadpool(_list_rows, channel, bot_id, account_id, q, mode, limit, offset, status, chat_type,
                                        tag, has_contact, sort, account_ids, who, tags_any, tags_none, date_from, date_to,
-                                       last_by, pinned, others, kind, has_phone)
+                                       last_by, pinned, others, kind, has_phone, network)
         items, who_counts, total, hesitant, extra, ctx, quick_counts = rows
         if offset > 0:
             return {"ok": True, "items": items}
@@ -525,7 +527,7 @@ def register(app, deps: ConversationsDeps):
 
     def _list_rows(channel, bot_id, account_id, q, mode, limit, offset, status, chat_type, tag, has_contact, sort,
                    account_ids, who, tags_any, tags_none, date_from, date_to, last_by, pinned, others=(), kind="",
-                   has_phone=0) -> tuple:
+                   has_phone=0, network="") -> tuple:
         """The blocking part of GET /conversations: `(items, who_counts, total, hesitant, extra, ctx, quick_counts)`.
         From the second page on the rows already carry `bot_name` and `need_reply`."""
         hesitant = _hesitant()
@@ -535,7 +537,7 @@ def register(app, deps: ConversationsDeps):
         extra = dict(tag=tag, has_contact=bool(has_contact), sort=sort, hidden=hidden,
                      account_ids=_ids_param(account_ids), tags_any=_ids_param(tags_any), tags_none=_ids_param(tags_none),
                      since=since, until=until, last_by=last_by, pinned=bool(pinned),
-                     exclude_account_ids=list(others or []), kind=kind, has_phone=bool(has_phone))
+                     exclude_account_ids=list(others or []), kind=kind, has_phone=bool(has_phone), network=network)
         ctx = _StateCtx(hesitant)
         who = who if who in inbox_state.WHO else ""
         who_counts, total, quick_counts = None, None, None
@@ -558,7 +560,7 @@ def register(app, deps: ConversationsDeps):
             # inbox: ticking one Page or searching must not make the other Pages' numbers vanish.
             narrowed = bool(channel or bot_id or account_id or q or status or chat_type or tag or has_contact
                             or base["account_ids"] or base["tags_any"] or base["tags_none"] or since or until
-                            or base["last_by"] or pinned)
+                            or base["last_by"] or pinned or base["network"])
             every = ([(r, ctx.of(r)["who"]) for r in conversations.state_rows(
                          hesitant=hesitant, hidden="exclude", exclude_account_ids=base["exclude_account_ids"])]
                      if narrowed else pairs)

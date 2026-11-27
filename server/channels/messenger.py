@@ -92,3 +92,14 @@ async def send_file(tk: dict, chat_id: str, path: str, caption: str = "", chat_t
                                     "this Messenger account has no credentials yet")
     bot = _Transport()(token, "", None, giau_trang_thai=True)
     return await bot.send_file(path, caption, chat=chat_id)
+
+
+# Instagram chats arrive through the same Page (0.447.0), told apart by the chat id: "ig:<user>" for a direct message,
+# "igc:<comment id>" for a comment thread (messenger_bot.IG_PREFIX / IG_COMMENT_PREFIX; not imported here so the
+# registry stays light). Everything else on this channel is Facebook.
+_INSTAGRAM_PREFIXES = ("ig:", "igc:")
+
+
+def network_of_chat(external_chat_id: str) -> str:
+    """Core hook (conversations.chat_network): the network a stored chat belongs to."""
+    return "instagram" if str(external_chat_id or "").startswith(_INSTAGRAM_PREFIXES) else "facebook"

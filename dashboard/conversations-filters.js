@@ -50,7 +50,7 @@
   // chats where the customer left a phone number.
   function emptyState() {
     return { bot: "", status: "", type: "", channel: "", who: "", accs: [], tagsAny: [], tagsNone: [],
-             when: null, lastBy: "", pinned: "", kind: "", phone: "" };
+             when: null, lastBy: "", pinned: "", kind: "", phone: "", network: "" };
   }
   function idList(v, re, max) {
     return (Array.isArray(v) ? v : []).map(String).filter(function (x, i, a) { return re.test(x) && a.indexOf(x) === i; }).slice(0, max);
@@ -81,6 +81,8 @@
       // A browser that saved the old "phone or email" filter (`contact`, or "contact" as a status in the first 0.313.0
       // build) gets "Has phone": nearly every contact a customer leaves is a phone number.
       phone: r.phone === "1" || r.phone === true || r.contact === "1" || r.contact === true || r.status === "contact" ? "1" : "",
+      // #1633: one social network (server `conversations.clean_network`).
+      network: /^[a-z0-9][a-z0-9_.-]{0,31}$/.test(String(r.network || "")) ? String(r.network) : "",
     };
   }
 
@@ -101,7 +103,7 @@
   // controls).
   function activeCount(state) {
     var s = sanitize(state);
-    return ["bot", "status", "type", "channel", "when", "lastBy", "pinned"].filter(function (k) { return !!s[k]; }).length +
+    return ["bot", "status", "type", "channel", "when", "lastBy", "pinned", "network"].filter(function (k) { return !!s[k]; }).length +
       s.tagsAny.length + s.tagsNone.length;
   }
 
@@ -124,6 +126,7 @@
     if (s.pinned) q += "&pinned=1";
     if (s.kind) q += "&kind=" + s.kind;
     if (s.phone) q += "&has_phone=1";
+    if (s.network) q += "&network=" + encodeURIComponent(s.network);
     return q;
   }
 

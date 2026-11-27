@@ -114,6 +114,7 @@ CREATE TABLE IF NOT EXISTS conversations(
     metadata_json TEXT NOT NULL DEFAULT '{}',
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL,
+    network TEXT NOT NULL DEFAULT '',
     UNIQUE(channel_account_id, external_chat_id)
 );
 CREATE INDEX IF NOT EXISTS ix_conv_last ON conversations(last_message_at);
@@ -233,6 +234,47 @@ def _nang_cap(db: sqlite3.Connection) -> None:
         # Owner, 2026-10-25 (row menu like Zalo's): "Hide conversation" takes a chat out of the normal inbox list; the
         # "Hidden" filter shows it again. A NEW customer message clears it (`ghi_su_kien`), so a customer is never missed.
         db.execute("ALTER TABLE conversations ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0")
+    if "network" not in cot_hoi_thoai:
+        # #1633: the social network a chat came from, for a channel that reaches several (Messenger: Facebook and
+        # Instagram; a pack bridging many). Empty = the channel's own. Old rows are filled once from the channel.
+        db.execute("ALTER TABLE conversations ADD COLUMN network TEXT NOT NULL DEFAULT ''")
+        _backfill_network(db)
+    db.execute("CREATE INDEX IF NOT EXISTS ix_conv_network ON conversations(network) WHERE network != ''")
+
+
+def _backfill_network(db: sqlite3.Connection) -> None:
+    """Fill `network` on stored chats from each channel's `network_of_chat` hook (see `chat_network`)."""
+    try:
+        rows = db.execute("SELECT c.id, a.channel, c.external_chat_id FROM conversations c"
+                          " JOIN channel_accounts a ON a.id=c.channel_account_id WHERE c.network=''").fetchall()
+    except sqlite3.Error:
+        return
+    for r in rows:
+        net = chat_network(r[1], r[2])
+        if net:
+            db.execute("UPDATE conversations SET network=? WHERE id=?", (net, r[0]))
+
+
+_NETWORK = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,31}$")
+
+
+def clean_network(v: Any) -> str:
+    """A network id as stored and filtered on: lowercase, short, safe in a URL and a CSS class; anything else is ''."""
+    v = str(v or "").strip().lower()
+    return v if _NETWORK.match(v) else ""
+
+
+def chat_network(channel: str, external_chat_id: str, given: Any = "") -> str:
+    """The network of one chat: what the event said, else the channel module's `network_of_chat(external_chat_id)`
+    hook (Messenger tells Instagram from Facebook by the chat id), else ''. Never raises."""
+    net = clean_network(given)
+    if net:
+        return net
+    try:
+        hook = getattr(_channels.module(channel), "network_of_chat", None)
+        return clean_network(hook(external_chat_id)) if callable(hook) else ""
+    except Exception:
+        return ""
 
 
 def close() -> None:
@@ -303,6 +345,7 @@ def chuan_hoa(ev: dict) -> dict:
         message_type         text | image | file | audio | video | sticker | reaction | other
         text                 nội dung chữ (hoặc mô tả media)
         external_message_id  id tin phía kênh, dùng chống trùng (tuỳ chọn)
+        network              the social network of the chat (instagram, tiktok...), optional; see `chat_network`
         created_at           epoch giây (mặc định: bây giờ)
         metadata             dict tuỳ ý (đường dẫn file tạm, tên file, ...)
         conversation_metadata  dict merged into the CONVERSATION's metadata (optional; the post a comment
@@ -356,6 +399,7 @@ def chuan_hoa(ev: dict) -> dict:
         "created_at": ts,
         "metadata": meta,
         "conversation_metadata": conv_meta,
+        "network": chat_network(kenh, chat, ev.get("network")),
     }
 
 
@@ -450,16 +494,17 @@ def ghi_su_kien(ev: dict, dem_chua_doc: bool = True, late: bool = False, seq: Op
                 renamed = _NEW_NAME.format(v="title", old="conversations.title", seen="conversations.channel_title")
                 db.execute(
                     "INSERT INTO conversations(channel_account_id, customer_id, bot_id,"
-                    " external_chat_id, chat_type, title, channel_title, created_at, updated_at)"
-                    " VALUES(?,?,?,?,?,?,?,?,?)"
+                    " external_chat_id, chat_type, title, channel_title, created_at, updated_at, network)"
+                    " VALUES(?,?,?,?,?,?,?,?,?,?)"
                     " ON CONFLICT(channel_account_id, external_chat_id) DO UPDATE SET"
                     " updated_at=excluded.updated_at,"
                     " customer_id=COALESCE(conversations.customer_id, excluded.customer_id),"
                     " bot_id=CASE WHEN excluded.bot_id != '' THEN excluded.bot_id ELSE conversations.bot_id END,"
                     f" title=CASE WHEN {renamed} THEN excluded.title ELSE conversations.title END,"
-                    f" channel_title=CASE WHEN {renamed} THEN excluded.title ELSE conversations.channel_title END",
+                    f" channel_title=CASE WHEN {renamed} THEN excluded.title ELSE conversations.channel_title END,"
+                    " network=CASE WHEN excluded.network != '' THEN excluded.network ELSE conversations.network END",
                     (tk_id, customer_id, e["bot_id"], e["external_chat_id"], e["chat_type"],
-                     tieu_de, tieu_de, now, now))
+                     tieu_de, tieu_de, now, now, e["network"]))
                 conv = db.execute(
                     "SELECT id, unread_count, message_count, metadata_json FROM conversations"
                     " WHERE channel_account_id=? AND external_chat_id=?",
@@ -1034,7 +1079,8 @@ def danh_sach(channel: str = "", bot_id: str = "", account_id: str = "", q: str 
               hesitant=None, tag: int = 0, has_contact: bool = False, sort: str = "",
               hidden: str = "", account_ids=None, ids=None, tags_any=None, tags_none=None,
               since: float = 0, until: float = 0, last_by: str = "", pinned: bool = False,
-              _light: bool = False, exclude_account_ids=None, kind: str = "", has_phone: bool = False) -> List[dict]:
+              _light: bool = False, exclude_account_ids=None, kind: str = "", has_phone: bool = False,
+              network: str = "") -> List[dict]:
     """Danh sách hội thoại, ĐÃ GHIM rồi tới MỚI NHẤT TRƯỚC, kèm tên khách và kênh.
 
     `q` tìm theo tên khách, tiêu đề, id chat, tin cuối (LIKE, không phân biệt hoa thường).
@@ -1061,7 +1107,7 @@ def danh_sach(channel: str = "", bot_id: str = "", account_id: str = "", q: str 
     n = max(1, min(int(limit or 50), MAX_STATE_ROWS if _light else MAX_DANH_SACH))
     o = max(0, int(offset or 0))
     where, args = _base_where(account_ids, ids, tags_any, tags_none, since, until, last_by, pinned,
-                              exclude_account_ids)
+                              exclude_account_ids, network)
     if channel:
         where.append("a.channel=?"); args.append(str(channel))
     if bot_id == BOT_KHONG_CO:
@@ -1162,8 +1208,12 @@ def dem_bo_loc(hesitant=None, exclude_account_ids=None) -> dict:
             " SUM(CASE WHEN c.contact!='' THEN 1 ELSE 0 END) AS contact"
             " FROM conversations c WHERE c.hidden=0" + and_x + " GROUP BY c.bot_id", args_nr + args_x).fetchall()
         n_hidden = _conn().execute("SELECT COUNT(*) FROM conversations c WHERE c.hidden=1" + and_x, args_x).fetchone()[0]
+        nets = _conn().execute("SELECT c.network AS network, COUNT(*) AS n FROM conversations c"
+                               " WHERE c.hidden=0 AND c.network!=''" + and_x + " GROUP BY c.network", args_x).fetchall()
     out = {"tong": 0, "bots": {}, "status": {"unread": 0, "need_reply": 0, "human": 0, "hidden": int(n_hidden or 0)},
-           "type": {"group": 0, "private": 0}, "has_contact": 0}
+           "type": {"group": 0, "private": 0}, "has_contact": 0,
+           # #1633: chats per social network (the Filter menu's Network options); a chat without one is not counted.
+           "networks": {str(r["network"]): int(r["n"] or 0) for r in nets}}
     for r in rows:
         tong = int(r["tong"] or 0)
         out["tong"] += tong
@@ -1190,11 +1240,15 @@ def _exclude_accounts_sql(exclude_account_ids) -> tuple:
 
 
 def _base_where(account_ids=None, ids=None, tags_any=None, tags_none=None, since: float = 0, until: float = 0,
-                last_by: str = "", pinned: bool = False, exclude_account_ids=None) -> tuple:
+                last_by: str = "", pinned: bool = False, exclude_account_ids=None, network: str = "") -> tuple:
     """WHERE parts shared by `danh_sach` and `state_rows` for the Chatbot v5 filters: picked accounts, ids, tags
     any/none, the last message between `since` and `until` (timestamps, 0 = open), who sent the last message
-    (customer | ai | human, anything else ignored) and pinned chats only."""
+    (customer | ai | human, anything else ignored), pinned chats only, and one `network` (#1633; a malformed one is
+    ignored like any stale filter value)."""
     where, args = [], []
+    net = clean_network(network)
+    if net:
+        where.append("c.network=?"); args.append(net)
     if since:
         where.append("c.last_message_at>=?"); args.append(float(since))
     if until:
@@ -1232,7 +1286,8 @@ MAX_STATE_ROWS = 5000     # most conversations the "who is handling it" filter l
 def state_rows(channel: str = "", bot_id: str = "", q: str = "", status: str = "", chat_type: str = "",
                hesitant=None, tag: int = 0, has_contact: bool = False, hidden: str = "", account_ids=None,
                tags_any=None, tags_none=None, sort: str = "", since: float = 0, until: float = 0, last_by: str = "",
-               pinned: bool = False, exclude_account_ids=None, kind: str = "", has_phone: bool = False) -> List[dict]:
+               pinned: bool = False, exclude_account_ids=None, kind: str = "", has_phone: bool = False,
+               network: str = "") -> List[dict]:
     """Every conversation matching the inbox filters (newest first, at most MAX_STATE_ROWS), with only the columns the
     "who is handling it" state needs: id, bot_id, chat_type, external_chat_id, channel_account_id, channel, mode,
     last_sender_type, unread_count, last_message, metadata, plus `contact` for the quick row's counts. Same filters as
@@ -1241,7 +1296,7 @@ def state_rows(channel: str = "", bot_id: str = "", q: str = "", status: str = "
                      tag=tag, has_contact=has_contact, hidden=hidden, account_ids=account_ids, tags_any=tags_any,
                      tags_none=tags_none, sort=sort, since=since, until=until, last_by=last_by, pinned=pinned,
                      limit=MAX_STATE_ROWS, _light=True, exclude_account_ids=exclude_account_ids, kind=kind,
-                     has_phone=has_phone)
+                     has_phone=has_phone, network=network)
     return rows
 
 
