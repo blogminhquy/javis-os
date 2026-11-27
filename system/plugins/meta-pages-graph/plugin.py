@@ -339,6 +339,126 @@ async def _comments(args, ctx):
     return _fmt(d)
 
 
+# ---- Page and post insights (issue #1879, 2026-11-27) ----------------------------------------------------------
+# The Messenger card has asked for `read_insights` since 0.560.0 (an optional tick), but no tool read it, so a social
+# report could not say how a Page or a post did. Read only, through the same Page token as every tool here; metric names
+# Meta deprecates over time (the Nov 2025 "views" switch), so a refused metric is retried one by one and the rest still
+# comes back with a note naming what Meta refused.
+PAGE_METRICS = ("page_media_view", "page_total_media_view_unique", "page_post_engagements", "page_follows")
+POST_METRICS = ("post_media_view", "post_total_media_view_unique", "post_clicks", "post_reactions_by_type_total")
+INSIGHT_PERIODS = ("day", "week", "days_28", "lifetime")
+MAX_METRICS = 10
+MAX_RANGE_DAYS = 90
+_METRIC_RE = __import__("re").compile(r"^[a-z][a-z0-9_]{1,63}$")
+_DATE_RE = __import__("re").compile(r"^\d{4}-\d{2}-\d{2}$")
+INSIGHTS_HINT = ("Hint: the Page needs the read_insights permission. Tell the owner: Connections page, Facebook Messenger "
+                 "card, Connect, tick \"Read post insights\", then Log in with Facebook again.")
+
+
+def _insight_metrics(args, default):
+    raw = (args or {}).get("metrics")
+    if isinstance(raw, str):
+        raw = [x.strip() for x in raw.split(",")]
+    picked = [str(m).strip().lower() for m in (raw or []) if str(m).strip()]
+    bad = [m for m in picked if not _METRIC_RE.match(m)]
+    if bad:
+        return None, "ERROR: invalid metric name: " + ", ".join(bad[:5])
+    picked = list(dict.fromkeys(picked))[:MAX_METRICS]
+    return (picked or list(default)), None
+
+
+def _insight_range(args):
+    """(since, until) as YYYY-MM-DD, default the last 28 days. Error text when the dates cannot be read."""
+    import datetime as _dt
+    a = args or {}
+    today = _dt.date.today()
+    try:
+        until = _dt.date.fromisoformat(str(a.get("until"))) if a.get("until") else today
+        since = _dt.date.fromisoformat(str(a.get("since"))) if a.get("since") else until - _dt.timedelta(days=28)
+    except ValueError:
+        return None, None, "ERROR: since and until must be YYYY-MM-DD."
+    if since > until:
+        return None, None, "ERROR: since must be before until."
+    if (until - since).days > MAX_RANGE_DAYS:
+        return None, None, f"ERROR: Meta returns at most {MAX_RANGE_DAYS} days per call; split the range."
+    return since.isoformat(), until.isoformat(), None
+
+
+def _compact_insights(d):
+    out = []
+    for m in (d or {}).get("data") or []:
+        if not isinstance(m, dict):
+            continue
+        out.append({"metric": m.get("name"), "period": m.get("period"), "title": m.get("title"),
+                    "values": [{"end_time": v.get("end_time"), "value": v.get("value")}
+                               for v in (m.get("values") or []) if isinstance(v, dict)]})
+    return out
+
+
+async def _read_insights(obj, metrics, params, token):
+    """GET <obj>/insights for every metric; a refused batch is retried metric by metric. Returns (rows, refused, err)."""
+    d = await _get(f"{obj}/insights", {**params, "metric": ",".join(metrics)}, token)
+    if not (isinstance(d, dict) and d.get("error")):
+        return _compact_insights(d), [], None
+    if len(metrics) == 1:
+        return [], [], d
+    rows, refused, last_err = [], [], d
+    for m in metrics:
+        one = await _get(f"{obj}/insights", {**params, "metric": m}, token)
+        if isinstance(one, dict) and one.get("error"):
+            refused.append(m)
+            last_err = one
+        else:
+            rows.extend(_compact_insights(one))
+    return rows, refused, (None if rows else last_err)
+
+
+def _insights_error(d):
+    out = _fmt(d)
+    e = (d or {}).get("error") if isinstance(d, dict) else None
+    code = str(e.get("code")) if isinstance(e, dict) else ""
+    if code in ("10", "200") or "read_insights" in out or "permission" in out.lower():
+        out = out.split(" (Gợi ý:")[0] + " (" + INSIGHTS_HINT + ")"
+    return out
+
+
+async def _insights(args, ctx):
+    token = await _token()
+    if not token:
+        return "ERROR: " + (_check() or "chưa kết nối")
+    args = dict(args or {})
+    post = str(args.get("post_id") or "").strip()
+    if post and not (args.get("page_id") or args.get("page")) and "_" in post:
+        args["page_id"] = post.split("_", 1)[0]
+    metrics, err = _insight_metrics(args, POST_METRICS if post else PAGE_METRICS)
+    if err:
+        return err
+    pid, ptok, pname, err = await _resolve_page(args, token)
+    if err:
+        return err
+    if post:
+        params = {"period": "lifetime"}
+    else:
+        period = str(args.get("period") or "day").strip().lower()
+        if period not in INSIGHT_PERIODS:
+            return "ERROR: period must be one of: " + ", ".join(INSIGHT_PERIODS)
+        since, until, err = _insight_range(args)
+        if err:
+            return err
+        params = {"period": period, "since": since, "until": until}
+    rows, refused, err_d = await _read_insights(post or pid, metrics, params, ptok)
+    if err_d is not None:
+        return _insights_error(err_d)
+    from graph_output import sanitize_graph_output
+    out = {"page": {"id": pid, "name": pname}, "object": post or pid, **{k: v for k, v in params.items()},
+           "metrics": rows}
+    if refused:
+        out["refused_metrics"] = refused
+        out["note"] = ("Meta refused these metrics (deprecated, misspelled, or not available for this object); "
+                       "the other metrics are valid.")
+    return json.dumps(sanitize_graph_output(out), ensure_ascii=False, default=str)
+
+
 async def _publish(args, ctx):
     token = await _token()
     if not token:
@@ -845,6 +965,24 @@ def register(ctx):
             "page_id": {"type": "string", "description": "id Trang (bỏ trống nếu chỉ có 1 Trang)"},
             "page": {"type": "string", "description": "tên Trang (thay cho page_id)"},
             "limit": {"type": "integer", "description": "Số bài tối đa (mặc định 25)"}}},
+    )
+    ctx.register_tool(
+        name="fb_page_insights", min_mode="readonly", check_fn=_check, handler=_insights,
+        description=("Read INSIGHTS of a Facebook Page or of one post: views, viewers, engagement, follows, clicks, "
+                     "reactions. Without post_id: Page metrics per day/week/28 days between since and until (default the "
+                     "last 28 days, at most 90). With post_id (from fb_page_posts): that post's lifetime metrics. "
+                     "`metrics` picks other Graph API metric names. Needs the read_insights permission (the \"Read post "
+                     "insights\" tick when connecting the Page on the Facebook Messenger card). Read only."),
+        schema={"type": "object", "properties": {
+            "page_id": {"type": "string", "description": "Page id (leave empty with a single Page)"},
+            "page": {"type": "string", "description": "Page name (instead of page_id)"},
+            "post_id": {"type": "string", "description": "Post id (from fb_page_posts) for that post's insights"},
+            "metrics": {"type": "array", "items": {"type": "string"},
+                        "description": "Graph API metric names (up to 10). Empty = the default set"},
+            "period": {"type": "string", "enum": list(INSIGHT_PERIODS),
+                       "description": "Page insights only: day (default), week, days_28, lifetime"},
+            "since": {"type": "string", "description": "Start date YYYY-MM-DD (Page insights)"},
+            "until": {"type": "string", "description": "End date YYYY-MM-DD (Page insights)"}}},
     )
     ctx.register_tool(
         name="fb_page_post", min_mode="full", check_fn=_check, handler=_publish,

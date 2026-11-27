@@ -31,7 +31,10 @@ WRITE_HINTS = ("create", "update", "delete", "add", "remove", "edit", "send", "s
                # tự thêm còn hơn để lọt một hành động; connector trong catalog khai tool_meta nên không bị ảnh hưởng.
                "forward", "share", "trash", "transfer", "move", "archive", "assign", "withdraw", "revoke",
                "grant", "rename", "insert", "patch", "replace", "merge", "subscribe", "enable", "disable",
-               "notify", "restore", "import")
+               "notify", "restore", "import",
+               # 2026-11-27 (issue #1865 review): Supabase's apply_migration, reset_branch, rebase_branch,
+               # pause_project were read as reads, so a custom connection at Read only could migrate a database.
+               "apply", "migrat", "reset", "rebase", "pause", "rollback", "drop", "truncate", "purge", "wipe")
 
 PERM_RANK = {"readonly": 0, "safe": 1, "full": 2}
 # "gated" (0.207.0, team_gate.py): a Team step that needs the owner's approval for outside actions. Caps like auto, so
@@ -544,6 +547,107 @@ def call_rule(connector, tool):
     return None
 
 
+# ---- SQL reads on a server that enforces read-only itself (issue #1865, 2026-11-27) --------------------------------
+# Supabase's official MCP server, opened with `read_only=true` on its URL, runs every query in a read-only Postgres
+# transaction. Its one SQL tool is `execute_sql`, which the name heuristic files as a write ("execute"), so a
+# connection set to Read only could not even SELECT. A tool listed in `sql_read_tools` is a read when its query is ONE
+# plain SELECT (checked below); anything else keeps the old class. Both locks stay: the server's read-only transaction,
+# and this parse. Only a URL that proves the lock (`with_server_read_only`) gets the list; no other connector changes.
+SUPABASE_MCP_HOSTS = ("mcp.supabase.com",)
+_SQL_WRITE_WORDS = __import__("re").compile(
+    r"\b(insert|update|delete|merge|upsert|truncate|drop|alter|create|grant|revoke|copy|into|vacuum|analyze|"
+    r"reindex|cluster|refresh|listen|notify|unlisten|prepare|deallocate|discard|reset|security\s+definer|"
+    r"comment\s+on|lock\s+table|for\s+(update|share|no\s+key\s+update|key\s+share))\b", __import__("re").I)
+# Functions that act although a SELECT calls them: end sessions, change settings, sleep, touch files or the network.
+_SQL_ACTING_FUNCS = __import__("re").compile(
+    r"\b(pg_terminate_backend|pg_cancel_backend|pg_reload_conf|pg_rotate_logfile|pg_switch_wal|"
+    r"pg_create_restore_point|set_config|pg_sleep\w*|lo_import|lo_export|lo_unlink|lo_create|dblink\w*|"
+    r"pg_read_file|pg_read_binary_file|pg_ls_\w+|pg_stat_file|nextval|setval|pg_advisory\w*|pg_notify|"
+    r"pg_logical_emit_message|http\w*|net\.\w+|query_to_xml\w*)\s*\(", __import__("re").I)
+_SQL_START = __import__("re").compile(r"^\(*\s*(select|with|explain|values|table)\b", __import__("re").I)
+
+
+def _sql_strip(sql: str) -> str:
+    """The query without comments, string literals, dollar-quoted bodies and quoted identifiers (so 'delete' inside a
+    string or a column named "update" is not read as a statement). Unterminated quoting returns "" (refused)."""
+    import re
+    s = str(sql or "")
+    out, i, n = [], 0, len(s)
+    while i < n:
+        c = s[i]
+        if s.startswith("--", i):
+            j = s.find("\n", i)
+            i = n if j < 0 else j
+            out.append(" ")
+            continue
+        if s.startswith("/*", i):
+            j = s.find("*/", i + 2)
+            if j < 0:
+                return ""
+            i = j + 2
+            out.append(" ")
+            continue
+        if c in ("'", '"'):
+            j = i + 1
+            while True:
+                j = s.find(c, j)
+                if j < 0:
+                    return ""
+                if j + 1 < n and s[j + 1] == c:
+                    j += 2
+                    continue
+                break
+            i = j + 1
+            out.append(" x ")
+            continue
+        m = re.match(r"\$([A-Za-z_][A-Za-z0-9_]*)?\$", s[i:])
+        if c == "$" and m:
+            tag = m.group(0)
+            j = s.find(tag, i + len(tag))
+            if j < 0:
+                return ""
+            i = j + len(tag)
+            out.append(" x ")
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def is_read_only_sql(sql) -> bool:
+    """True only for ONE statement that reads: SELECT / WITH ... SELECT / EXPLAIN (not ANALYZE) / VALUES / TABLE, with
+    no data-modifying CTE, SELECT INTO, row lock or acting function. Anything unclear is False (fail closed)."""
+    body = _sql_strip(sql).strip()
+    while body.endswith(";"):
+        body = body[:-1].rstrip()
+    if not body or ";" in body or len(body) > 20000:
+        return False
+    if not _SQL_START.match(body):
+        return False
+    return not (_SQL_WRITE_WORDS.search(body) or _SQL_ACTING_FUNCS.search(body))
+
+
+def supabase_read_only(url) -> bool:
+    """The URL is Supabase's official MCP server locked to read-only and to one project."""
+    from urllib.parse import parse_qs, urlsplit
+    try:
+        u = urlsplit(str(url or "").strip())
+    except ValueError:
+        return False
+    if u.scheme != "https" or (u.hostname or "").lower() not in SUPABASE_MCP_HOSTS:
+        return False
+    q = {k.lower(): v for k, v in parse_qs(u.query).items()}
+    ro = [str(v).strip().lower() for v in q.get("read_only", [])]
+    return ro == ["true"] and bool([v for v in q.get("project_ref", []) if str(v).strip()])
+
+
+def with_server_read_only(connector, conn):
+    """`connector` plus `sql_read_tools` when this connection's server enforces read-only itself; else unchanged."""
+    if not supabase_read_only((conn or {}).get("url")):
+        return connector
+    return {**(connector or {}), "sql_read_tools": ["execute_sql"]}
+
+
 def classify(connector, tool, args=None):
     """'read' | 'write' | 'danger' cho MỘT lời gọi tool (tên GỐC, không namespace).
     args=None (lúc tools/list) → tool đa hành động tạm coi 'read' để còn LIỆT KÊ được;
@@ -557,6 +661,14 @@ def classify(connector, tool, args=None):
 
     if _in(meta.get("read")):
         return "read"
+    if t in [str(x).lower() for x in (c.get("sql_read_tools") or [])]:
+        # Listed only when the server itself runs read-only (see `with_server_read_only`): listing it is safe, and a
+        # call is a read only for one plain SELECT. Any other query keeps the old class, so Read only still blocks it.
+        if not isinstance(args, dict):
+            return "read"
+        if is_read_only_sql(args.get("query", args.get("sql"))):
+            return "read"
+        return "write"
 
     # TOOL CỔNG (vd COMPOSIO_MULTI_EXECUTE_TOOL): một tool chạy HÀNG LOẠT hành động con, mỗi cái
     # một tên riêng nằm trong args (tools[].tool_slug). Phân loại theo tên tool cổng thì chỉ có
