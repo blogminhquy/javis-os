@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.651.1] - 2026-11-27
+### Sửa lỗi
+- **Chấm đỏ chưa đọc của cộng sự khớp với lịch sử hội thoại.** Trước đây mở một hội thoại bất kỳ của cộng sự là số chưa đọc trên thẻ biến mất, trong khi các hội thoại khác của cộng sự đó vẫn còn chấm đỏ, và chấm đỏ ở mục Cộng sự trên menu trái không chỉ ra được cộng sự nào. Nay số trên thẻ đếm đúng các hội thoại còn chấm đỏ, kể cả cộng sự đang mở.
+- **Quy trình cũng có số chưa đọc**, và tab Cộng sự hoặc Quy trình có chấm đỏ khi bên trong có hội thoại chưa đọc.
+- **Cộng sự có tin chưa đọc được kéo lên nhóm "Chưa đọc"** ngay dưới nhóm đã ghim, không còn bị giấu trong nhóm đang thu gọn hay ở trang sau. Bộ lọc đang ẩn một mục chưa đọc thì nút lọc hiện chấm đỏ.
+- Chấm đỏ của mục Cộng sự trên menu trái không còn sáng vì hội thoại của cộng sự đã xoá hay của trang Coding cũ.
+
 ## [0.651.0] - 2026-11-27
 ### Thêm mới
 - **Mỗi trợ lý nhớ mức suy nghĩ anh chọn khi chat.** Đổi mức suy nghĩ ở khung chat với một trợ lý là chat mới, và các chat chưa chọn mức riêng với trợ lý đó, cũng dùng mức này. Cửa sổ nào anh đã chọn mức riêng thì giữ nguyên. Việc nền của trợ lý vẫn theo mức trong cài đặt.

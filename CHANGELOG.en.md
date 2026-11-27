@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.651.1] - 2026-11-27
+### Fixed
+- **A partner's unread count matches its chat history.** Opening any one chat of a partner used to clear the count on its card while its other chats kept their red dots, and the Partners dot on the left menu pointed at nothing you could find. The card now counts exactly the chats that still show a dot, the partner on screen included.
+- **Workflows get an unread count too**, and the Partners or Workflows tab shows a red dot when something inside is unread.
+- **Partners with unread replies move to an "Unread" block** right under the pinned ones, never hidden in a folded group or on a later page. When the filter hides an unread row, the filter button shows a red dot.
+- The Partners dot on the left menu no longer lights up for chats of a deleted partner or of the old Coding page.
+
 ## [0.651.0] - 2026-11-27
 ### Added
 - **Each assistant remembers the thinking level you pick in its chat.** Changing the level in a chat with an assistant also applies to new chats with it and to its chats with no level of their own. A window where you picked a level of its own keeps it. The assistant's background work keeps the level in its settings.
