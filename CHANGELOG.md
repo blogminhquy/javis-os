@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.656.0] - 2026-11-27
+### Thêm mới
+- **Javis đọc được số liệu Fanpage và từng bài** (lượt xem, người xem, tương tác, lượt theo dõi, click) bằng Trang đã nối ở thẻ Facebook Messenger, không cần kết nối riêng. Cần tick "Đọc số liệu bài viết" khi nối Trang.
+- **Supabase ở mức Chỉ đọc chạy được câu SELECT** khi kết nối là máy chủ MCP chính thức của Supabase có `read_only=true`. Câu ghi, nhiều câu một lúc hay hàm có tác dụng phụ vẫn bị chặn.
+### Bảo mật
+- **Kết nối MCP tự thêm ở mức Chỉ đọc không còn chạy được tool đổi dữ liệu có tên lạ** như `apply_migration`, `reset_branch`, `pause_project` (trước đây bị nhận nhầm là tool đọc).
+
 ## [0.655.0] - 2026-11-27
 ### Thêm mới
 - **Bấm thông báo "bot cần người thật" là mở thẳng cuộc chat của khách** ở trang Hội thoại, không phải tự đi tìm trong lúc khách chờ.
