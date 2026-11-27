@@ -48,7 +48,7 @@ CODEX = "openai-oauth"
 GROK_CLI = "grok-cli"
 ANTIGRAVITY = "antigravity-cli"
 API_PROVIDERS = ("openrouter", "openai", "gemini", "groq", "deepseek", "anthropic-api", "ollama",
-                 "ollama-local", "openai-compat", "anthropic-compat")
+                 "ollama-local", "openai-compat", "anthropic-compat", "muse")
 
 # provider -> tên trường chứa API key trong settings["model"]
 _KEY_FIELD = {
@@ -69,6 +69,9 @@ _KEY_FIELD = {
     "openai-compat": "openai_compat_key",
     # Anthropic-compatible gateway (0.254.0): usable once its base URL is set, like openai-compat.
     "anthropic-compat": "anthropic_compat_key",
+    # Muse (26/11/2026): the gateway's admin key, which may also come from the gateway's own config.json on this
+    # machine. Usable once the card is connected (`muse_on`), see `api_key_for`.
+    "muse": "muse_key",
 }
 
 # mode của Javis -> sandbox của Codex CLI. Bản đồ thật nằm ở `claude_cli.codex_sandbox_cho_mode`
@@ -358,6 +361,9 @@ def api_key_for(provider: str, settings: dict = None) -> str:
         return (m.get(field) or "none") if (m.get("openai_compat_base") or "").strip() else ""
     if provider == "anthropic-compat":
         return (m.get(field) or "none") if (m.get("anthropic_compat_base") or "").strip() else ""
+    if provider == "muse":
+        import muse
+        return (muse.admin_key(m) or "none") if muse.connected(m) else ""
     if provider == "ollama-local":
         # Ollama at home has no auth: an empty key is normal. Same placeholder as the chat path (main.py, the key of a
         # routed provider) and `ollama_local_chat_with_mcp`. Before this, `_ApiAuxEngine` read "" as "no key", so a
@@ -422,6 +428,12 @@ def availability(spec: dict, settings: dict = None) -> tuple:
         s = settings if settings is not None else cfgmod.read_settings()
         if not (s.get("model", {}) or {}).get("anthropic_compat_base"):
             return False, "Chưa đặt Base URL cho Anthropic Compatible - vào trang Models."
+        return True, ""
+    if prov == "muse":
+        import muse
+        s = settings if settings is not None else cfgmod.read_settings()
+        if not muse.connected(s.get("model", {}) or {}):
+            return False, "Muse chưa kết nối - vào trang Models, dán cookie một tài khoản Muse."
         return True, ""
     if prov in API_PROVIDERS:
         if not api_key_for(prov, settings):
@@ -554,7 +566,8 @@ class _ApiAuxEngine:
                   "ollama": eng.ollama_chat_with_mcp,
                   "ollama-local": eng.ollama_local_chat_with_mcp,
                   "openai-compat": eng.openai_compat_chat_with_mcp,
-                  "anthropic-compat": eng.anthropic_compat_chat_with_mcp}[self.provider]
+                  "anthropic-compat": eng.anthropic_compat_chat_with_mcp,
+                  "muse": eng.muse_chat_with_mcp}[self.provider]
             # Việc nền có tool là việc CỦA CHỦ (task, loop, workflow, team), nên chạy với trần vòng của
             # chủ (mặc định 500) chứ không phải trần 30 của bot nói chuyện với khách. Trước 05/11/2026
             # việc nền bằng API key dừng ở vòng 30: điền Google Sheet, dựng video đều đứt giữa chừng.
@@ -569,7 +582,8 @@ class _ApiAuxEngine:
                   "ollama": eng.ollama_stream,
                   "ollama-local": eng.ollama_local_stream,
                   "openai-compat": eng.openai_compat_stream,
-                  "anthropic-compat": eng.anthropic_compat_stream}[self.provider]
+                  "anthropic-compat": eng.anthropic_compat_stream,
+                  "muse": eng.muse_stream}[self.provider]
             stream = fn(key, self.model, messages, self.reasoning)
 
         # Đường API sinh "text" theo mảnh; việc nền chỉ đọc "final" nên gom lại rồi phát MỘT lần.
@@ -1376,7 +1390,7 @@ def _links_for_step(step: dict, cli, mode, tag, codex_profile, settings, claude_
             s = settings if settings is not None else cfgmod.read_settings()
             m = s.get("model", {}) or {}
             field = _KEY_FIELD.get(prov, "")
-            accs = ([] if prov in ("openai-compat", "anthropic-compat", "ollama-local")
+            accs = ([] if prov in ("openai-compat", "anthropic-compat", "ollama-local", "muse")
                     else model_routing.usable_accounts(m, prov, field))
             mk = lambda key="", acc="": _ApiAuxEngine(   # noqa: E731
                 provider=prov, model=sp["model"], system_prompt=getattr(cli, "system_prompt", None),
