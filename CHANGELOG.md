@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.658.1] - 2026-11-27
+### Sửa lỗi
+- **Antigravity không còn mất câu hỏi khi ngữ cảnh quá dài.** Cộng sự có bộ nhớ lớn (vài chục KB) chạy bằng Antigravity từng trả lời "yêu cầu bị cắt mất, gửi lại giúp em" dù câu hỏi rất ngắn, vì `agy` cắt phần cuối tin nhắn đầu, đúng chỗ câu hỏi nằm. Nay tin nhắn dài thì câu hỏi mới nhất được chép thêm lên đầu, nên cắt kiểu gì model vẫn thấy và trả lời luôn.
+
 ## [0.658.0] - 2026-11-27
 ### Thêm mới
 - **Trí nhớ cộng sự tìm theo nhu cầu.** Cộng sự có bộ nhớ lớn không còn nạp nguyên file vào mỗi lượt. Luôn nạp: phần mở đầu, mục "Luật chủ dặn", mục tên bắt đầu bằng "Luật" hay "Quy tắc", mục tên kết thúc bằng "(luôn nạp)", kèm một bản đồ những gì có trong trí nhớ. Phần còn lại và tài liệu đính kèm được tìm theo từng tin nhắn (chat riêng mọi engine, Telegram, CLI, bước quy trình, lượt nhóm), và trợ lý tự tra thêm bằng công cụ mới `javis_recall`. Trí nhớ 3 MB vẫn chỉ tốn khoảng 1.500 ký tự trong prompt, mỗi lần tìm dưới 40 mili giây. Bộ nhớ dưới 12.000 ký tự chạy y như cũ.

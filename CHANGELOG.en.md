@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.658.1] - 2026-11-27
+### Fixed
+- **Antigravity no longer loses the question when the context is long.** An assistant with a large memory (tens of KB) on Antigravity used to reply "your request was cut off, please resend it" to a short question, because `agy` cuts the end of the first message, exactly where the question sits. A long first message now also carries the latest question at the top, so the model sees it and answers whatever gets cut.
+
 ## [0.658.0] - 2026-11-27
 ### Added
 - **Assistant memory is searched as needed.** An assistant with a large memory no longer loads the whole file on every turn. Always loaded: the opening text, the owner rules section, sections named as rules, and sections ending with "(always)", plus a map of what the memory holds. The rest and the attached documents are searched for each message (private chat on every engine, Telegram, CLI, workflow steps, team turns), and the assistant looks up more with the new `javis_recall` tool. A 3 MB memory still costs about 1,500 characters of prompt and a search takes under 40 ms. A memory under 12,000 characters works exactly as before.
