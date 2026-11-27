@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.650.0] - 2026-11-27
+### Thêm mới
+- **Chat dài quay lại sau hơn 1 giờ nghỉ không còn đọc lại cả mạch.** Bộ nhớ đệm của Claude Code và ChatGPT chỉ sống khoảng 1 giờ. Khi nó đã nguội và mạch cũ to gấp đôi trở lên so với một mạch mới mồi từ bản ghi hội thoại, Javis mở mạch mới và báo một dòng trong chat, đỡ được phần lớn số token phải ghi lại. Chat đang bật Giữ ấm bộ nhớ đệm thì giữ nguyên mạch.
+- **Trang Mức dùng có bảng "Vì sao tốn token (Claude)".** Đếm từ từng lượt gọi Claude Code đã ghi trên máy: số lần và số token mất vì cache nguội, vì đổi model giữa chat, và phần token nằm ở các lượt có ngữ cảnh trên 200k. Cache nguội ngốn từ 5% token vào trở lên thì phần Đề xuất cảnh báo.
+
 ## [0.649.0] - 2026-11-27
 ### Cải thiện
 - **Javis thấy đủ mọi skill.** Trước đây danh sách skill trong prompt chỉ chứa khoảng 20 skill (brain 44 skill thì 23 skill bị ẩn). Giờ prompt nêu tên mọi skill, gọn và cố định nên không làm mất cache.
