@@ -66,3 +66,30 @@ async def send_file(tk: dict, chat_id: str, path: str, caption: str = "", chat_t
         return False, localefmt.chu("tài khoản Telegram này chưa có token", "this Telegram account has no token yet")
     bot = _Transport()(token, "", None, giau_trang_thai=True)
     return await bot.send_file(path, caption, chat=chat_id)
+
+
+# Rename from the inbox (2026-11-27): a bot that is an admin with "Change group info" can retitle a group
+# (setChatTitle). A person's name is theirs on Telegram, so a private chat is renamed in Javis only.
+RENAMES = {"group": "title"}
+
+
+async def rename(tk: dict, chat_id: str, name: str, chat_type: str = "private"):
+    """Retitle a Telegram group. `(ok, error)`, the error in Telegram's words when it refuses (bot not an admin)."""
+    import httpx
+    token = str(tk.get("token") or "").strip()
+    if not token:
+        return False, localefmt.chu("tài khoản Telegram này chưa có token", "this Telegram account has no token yet")
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            r = await client.post(TG_API.format(token=token, method="setChatTitle"),
+                                  json={"chat_id": chat_id, "title": str(name)[:128]})
+        d = r.json() if r.content else {}
+    except Exception as e:
+        return False, f"{type(e).__name__}: {e}"
+    if d.get("ok"):
+        return True, ""
+    why = str(d.get("description") or f"HTTP {r.status_code}")
+    if "not enough rights" in why.lower() or "admin" in why.lower():
+        return False, localefmt.chu("Bot cần là quản trị viên nhóm, có quyền đổi thông tin nhóm. (" + why + ")",
+                                    "The bot must be a group admin allowed to change group info. (" + why + ")")
+    return False, why

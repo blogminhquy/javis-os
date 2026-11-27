@@ -12,6 +12,7 @@
      title, value, max, placeholder, hint,
      kinds: [{value, label}], kind, kindLabel,     // optional: one-of chips under the text (radio group)
      saveLabel, allowEmpty,                        // allowEmpty: an empty text is a valid answer (removes a description)
+     singleLine,                                   // a short one-line value (a chat's name, 2026-11-27): Enter saves
      save(text, kind) -> Promise<"" | error text>  // the box stays open and shows the error when saving fails
    }) -> Promise<boolean>                          // true once saved, false when closed without saving
 
@@ -63,7 +64,7 @@
       var before = document.activeElement;
 
       var wrap = document.createElement("div");
-      wrap.className = "ted-wrap";
+      wrap.className = "ted-wrap" + (o.singleLine ? " ted-one" : "");
       wrap.innerHTML =
         '<div class="ted-scrim"></div>' +
         '<div class="ted-box" role="dialog" aria-modal="true" aria-label="' + esc(o.title) + '">' +
@@ -72,7 +73,7 @@
             '<button type="button" class="ted-x" aria-label="' + esc(t("ted.close")) + '" title="' + esc(t("ted.close")) + '">' +
               icon("x") + "</button></div>" +
           (o.hint ? '<div class="ted-hint">' + esc(o.hint) + "</div>" : "") +
-          '<textarea class="ted-in" rows="6"' + (max ? ' maxlength="' + max + '"' : "") +
+          '<textarea class="ted-in" rows="' + (o.singleLine ? 1 : 6) + '"' + (max ? ' maxlength="' + max + '"' : "") +
             ' placeholder="' + esc(o.placeholder || "") + '"></textarea>' +
           (kinds.length
             ? '<div class="ted-kinds" role="radiogroup" aria-label="' + esc(o.kindLabel || "") + '">' +
@@ -85,7 +86,7 @@
           '<div class="ted-err" role="status" hidden></div>' +
           '<div class="ted-foot">' +
             '<span class="ted-count" aria-live="polite"></span>' +
-            '<span class="ted-keys">' + esc(t("ted.keys", { key: isMac() ? "Cmd" : "Ctrl" })) + "</span>" +
+            (o.singleLine ? "" : '<span class="ted-keys">' + esc(t("ted.keys", { key: isMac() ? "Cmd" : "Ctrl" })) + "</span>") +
             '<button type="button" class="ted-cancel">' + esc(t("ted.cancel")) + "</button>" +
             '<button type="button" class="ted-save">' + esc(o.saveLabel || t("ted.save")) + "</button>" +
           "</div>" +
@@ -136,7 +137,7 @@
       function onKey(e) {
         if (!wrap.isConnected) return;
         if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); finish(false); return; }
-        if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.isComposing) { e.preventDefault(); save(); }
+        if (e.key === "Enter" && (e.ctrlKey || e.metaKey || o.singleLine) && !e.isComposing) { e.preventDefault(); save(); }
       }
 
       wrap.querySelector(".ted-x").onclick = function () { finish(false); };

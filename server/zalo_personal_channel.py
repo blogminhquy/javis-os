@@ -64,6 +64,11 @@ MAX_TRANG = 5           # số lô tối đa đọc liên tiếp trong MỘT lư
 TEN_TTL = 300           # giây giữ bảng tên thread (zalo_list_threads) trước khi hỏi lại
 THU_LAI_TEN_GIAY = 15     # giây tối thiểu giữa hai lần làm mới CƯỠNG BỨC bảng (cuộc chat lạ), chống dồn dập
 THU_TEN_LAI = 600       # giây nhớ "đã làm mới bảng vì cuộc chat này mà vẫn không thấy tên", khỏi hỏi lại mỗi nhịp
+ALIAS_TTL = 900         # seconds between two reads of the account's friend aliases (a CLI run, see `_alias_turn`)
+ALIAS_RETRY = 1800      # seconds before trying again after a failed read
+ALIAS_FIRST = 60        # seconds after an account's first read before its first alias read (javis-zalo is starting)
+ALIAS_PAGE = 100        # aliases per page (`friend alias-list -c`)
+ALIAS_MAX_PAGES = 20
 MAX_TEN = 2000
 
 _task: Optional[asyncio.Task] = None
@@ -932,12 +937,115 @@ async def _nap_ten(conn: dict, tt: dict, cuong_buc: bool = False) -> Dict[str, d
         if len(bang) > MAX_TEN:
             bang = dict(list(bang.items())[-MAX_TEN:])
         tt["ten"], tt["ten_ts"] = bang, time.time()
+        _sync_group_names(conn, bang)
     except Exception as e:
         tt["ten_ts"] = time.time()      # đừng hỏi dồn dập khi đang hỏng
         if tt.get("ten") is None:
             tt["ten"] = {}
         print(f"[zalo-personal {conn.get('label')}] list_threads: {e}", file=sys.stderr)
     return tt["ten"]
+
+
+def _sync_group_names(conn: dict, table: Dict[str, dict]) -> None:
+    """A group renamed on Zalo while nobody writes in it: the thread table already has the new name (javis-zalo keeps
+    its cache fresh from Zalo's group events), so carry it to the inbox now instead of at the next message (owner,
+    2026-11-27: a name changed on Zalo must come back to Javis). Never raises."""
+    try:
+        groups = {tid: str(v.get("name") or "") for tid, v in (table or {}).items()
+                  if isinstance(v, dict) and str(v.get("type") or "").lower() == "group"}
+        if groups:
+            conversations.sync_group_titles(KENH, str(conn.get("id") or ""), groups)
+    except Exception as e:      # noqa: BLE001
+        print(f"[zalo-personal {conn.get('label')}] group names: {type(e).__name__}: {e}", file=sys.stderr)
+
+
+def note_thread_name(conn_id: str, thread_id: str, name: str) -> None:
+    """Javis just renamed group `thread_id` on Zalo: the thread table says so at once, so the next message there is not
+    read as Zalo still calling it by the old name."""
+    tt = _TT.get(str(conn_id))
+    if not tt or not isinstance(tt.get("ten"), dict):
+        return
+    row = dict(tt["ten"].get(str(thread_id)) or {"type": "group"})
+    row["name"] = str(name or "")[:120]
+    tt["ten"][str(thread_id)] = row
+
+
+def note_alias(conn_id: str, user_id: str, alias: str) -> None:
+    """Javis just set a friend alias on Zalo: keep the last list read in step until the next read."""
+    tt = _TT.get(str(conn_id))
+    if tt and isinstance(tt.get("aliases"), dict):
+        tt["aliases"][str(user_id)] = str(alias or "")
+
+
+def parse_alias_page(data: Any) -> List[tuple]:
+    """`[(user id, alias)]` out of one `friend alias-list --json` reply (zca-js `getAliasList`: `{items: [{userId,
+    alias}]}`)."""
+    items = (data or {}).get("items") if isinstance(data, dict) else data
+    out = []
+    for it in items or []:
+        if not isinstance(it, dict):
+            continue
+        uid = str(it.get("userId") or it.get("uid") or "").strip()
+        alias = str(it.get("alias") or "").strip()
+        if uid and alias:
+            out.append((uid, alias))
+    return out
+
+
+async def read_aliases(conn: dict) -> Optional[Dict[str, str]]:
+    """Every friend alias of the account, `{user id: alias}`, or None when Zalo could not be read (never a partial
+    list: a missing alias means "removed" to `conversations.sync_aliases`)."""
+    import zalo_cli
+    home = zalo_cli.home_of(conn)
+    if not home:
+        return None
+    out: Dict[str, str] = {}
+    for page in range(1, ALIAS_MAX_PAGES + 1):
+        ok, data, err = await zalo_cli.run_cli({"home": home}, ["friend", "alias-list"],
+                                               options=["-c", str(ALIAS_PAGE), "-p", str(page)], timeout=60)
+        if not ok:
+            print(f"[zalo-personal {conn.get('label')}] alias-list: {err}", file=sys.stderr)
+            return None
+        rows = parse_alias_page(data)
+        out.update(dict(rows))
+        raw = (data or {}).get("items") if isinstance(data, dict) else data
+        if len(raw or []) < ALIAS_PAGE:
+            return out
+    return out
+
+
+async def _alias_turn(conn: dict, tt: dict, now: Optional[float] = None) -> None:
+    """Every ALIAS_TTL seconds: read the account's friend aliases and rename the private chats whose alias changed on
+    Zalo (owner, 2026-11-27). A person's messages carry their own display name, never the nickname the owner gave
+    them, so this list is the only way an alias set in the Zalo app reaches Javis. Never raises."""
+    now = time.time() if now is None else float(now)
+    if now < float(tt.get("alias_due") or 0):
+        return
+    tt["alias_due"] = now + ALIAS_RETRY
+    try:
+        aliases = await read_aliases(conn)
+        if aliases is None:
+            return
+        tt["aliases"] = aliases
+        tt["alias_due"] = now + ALIAS_TTL
+        await asyncio.to_thread(conversations.sync_aliases, KENH, str(conn.get("id") or ""), aliases)
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:      # noqa: BLE001
+        print(f"[zalo-personal {conn.get('label')}] aliases: {type(e).__name__}: {e}", file=sys.stderr)
+
+
+def _start_alias_turn(conn: dict, tt: dict, now: Optional[float] = None) -> None:
+    """Run `_alias_turn` beside the read loop when it is due: a CLI run takes seconds (up to a minute on a slow
+    machine), and the loop that reads every account's messages must not wait for it."""
+    now = time.time() if now is None else float(now)
+    if "alias_due" not in tt:
+        tt["alias_due"] = now + ALIAS_FIRST
+        return
+    task = tt.get("alias_task")
+    if (task is not None and not task.done()) or now < float(tt.get("alias_due") or 0):
+        return
+    tt["alias_task"] = asyncio.create_task(_alias_turn(conn, tt, now))
 
 
 async def _lam_moi_ten_neu_thieu(conn: dict, tt: dict, tin: list, ten: dict) -> dict:
@@ -1195,6 +1303,7 @@ async def _vong() -> None:
                         # line JSON-parsed and missed messages written to SQLite. On the loop it froze every request
                         # for 1.19 s on the owner's VPS (/health/loop: _parse_lines < watch_history < _history_turn).
                         await asyncio.to_thread(_history_turn, conn, tt)
+                        _start_alias_turn(conn, tt)
                     _soi_tranh_phien(conn)
                     # Hạn sớm hơn một nhịp chút ít: vòng ngủ đúng một nhịp thì lần thức sau chắc chắn đã tới hạn.
                     # A wake-up that arrived during this read: read again on the next pass, no wait. The interval
@@ -1276,6 +1385,10 @@ def _loop_wait(conns: List[dict], on_ids: set, now: Optional[float] = None) -> O
             waits.append(float(NHIP_NHANH))
         elif any(k[0] == cid for k in _CHO_CHU) or tt.get("history_pending"):
             waits.append(float(NHIP))
+        elif tt.get("alias_due"):
+            # Names changed on Zalo (aliases, group names) come back even while nobody writes (2026-11-27).
+            # Never before the account's own next turn (`doc_toi`): a due beat must not spin the loop until then.
+            waits.append(max(1.0, max(float(tt["alias_due"]), float(tt.get("doc_toi") or 0)) - now))
     return min(waits) if waits else None
 
 
@@ -1332,6 +1445,9 @@ async def _idle_turn(conn: dict, tt: dict, now: float) -> None:
         xa_cho_chu(cid, now)
         if tt.get("history_pending"):
             await asyncio.to_thread(_history_turn, conn, tt)
+        if now >= float(tt.get("alias_due") or 0) and tt.get("alias_due"):
+            await _nap_ten(conn, tt)        # group names, on the same quiet beat (TEN_TTL keeps it to one call)
+        _start_alias_turn(conn, tt, now)
         _soi_tranh_phien(conn)
     except asyncio.CancelledError:
         raise

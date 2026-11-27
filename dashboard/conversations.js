@@ -1149,6 +1149,7 @@
     if (act === "unblock") return menuUnblock(id);
     if (act === "leave") return menuLeave(id);
     if (act === "delete") return menuDelete(id);
+    if (act === "rename") { closeRowMenu(false); return renameConv(id); }
     runRowAction(id, act);
   }
 
@@ -1271,6 +1272,41 @@
     _dauVet = "";
     veDanhSach();
     tai(true);
+  }
+
+  // Rename (owner, 2026-11-27): the "..." menu and the pencil next to the name in Info. The server renames on the
+  // platform where it can (Zalo, Telegram groups) and always in Javis; a platform refusal comes back as `warning`.
+  async function renameConv(id) {
+    var c = rmItem(id);
+    if (!c) return;
+    var F = window.JavisConvFilters, E = window.JavisTextEdit, ten = convName(c);
+    if (!E || !E.open) return;
+    var res = null;
+    var saved = await E.open({
+      title: window.t("ht.rename_t", { ten: ten }), value: c.title || ten, max: 120, placeholder: window.t("ht.rename_ph"),
+      hint: F && F.renameHint ? F.renameHint(c) : "", saveLabel: window.t("ht.rename_save"), singleLine: true,
+      save: async function (text) {
+        try {
+          res = await api("/conversations/" + id + "/rename", { method: "POST", body: fd({ name: text }) });
+          return "";
+        } catch (e) { return e.message || String(e); }
+      }
+    });
+    if (!saved || !res) return;
+    var nc = res.conversation || {};
+    [c, _conv && _conv.id === id ? _conv : null].concat(_items.filter(function (it) { return it.id === id; })).forEach(function (o) {
+      if (!o) return;
+      o.title = nc.title || o.title;
+      if (nc.customer_name != null) o.customer_name = nc.customer_name;
+    });
+    syncOpen(id, c);
+    _vetMeta = "";
+    _dauVet = "";
+    veDanhSach();
+    tai(true);
+    var channelName = c.channel_label || c.channel || "";
+    if (res.warning) alert(res.warning);
+    else if (!res.unchanged) toast(window.t(res.remote ? "ht.renamed_remote" : "ht.renamed", { ten: nc.title || "", kenh: channelName }));
   }
 
   // A chat removed for good (Delete, or leaving its group): out of the list, the open chat and the quick-return cache.
@@ -1999,7 +2035,9 @@
       '<div class="ib-ih">' + ic("user-round") + ' <span>' + esc(t("ib.info")) + '</span>' +
         '<button type="button" class="s-btn-ghost ib-x" aria-label="' + esc(t("common.close")) + '">' + ic("x") + '</button></div>' +
       '<div class="ib-sec"><div class="ib-kh">' + avatarHtml(c, ten) + '<span><b>' + esc(ten) + '</b><small>' + logoKenh(c.channel) + ' ' +
-          esc(accLabel(c) || k.nhan) + '</small></span></div>' +
+          esc(accLabel(c) || k.nhan) + '</small></span>' +
+          '<button type="button" class="s-btn-ghost ib-rename" title="' + esc(t("ht.rm_rename")) + '" aria-label="' + esc(t("ht.rm_rename")) + '">' +
+          ic("pencil") + '</button></div>' +
         // A group has no one customer to call back: the contact line is for private chats (or a group that left one).
         (c.chat_type !== "group" || c.contact ? '<div class="ib-line">' + ic(mail ? "mail" : "phone") + (c.contact ? '<span>' + esc(c.contact) + '</span>'
           : '<span class="ib-muted">' + esc(t("ib.i_no_contact")) + '</span>') + '</div>' : "") +
@@ -2024,6 +2062,8 @@
     };
     var mk = p.querySelector(".ib-make-bot");
     if (mk) mk.onclick = function () { makeBot(c); };
+    var rn = p.querySelector(".ib-rename");
+    if (rn) rn.onclick = function () { renameConv(c.id); };
     p.querySelectorAll(".ib-acts .ht-rm-it").forEach(function (b) {
       b.onclick = function () {
         var act = b.dataset.act;
@@ -2725,10 +2765,12 @@
         (fm ? '<button type="button" class="s-btn-ghost ib-plus" title="' + esc(t(fm === "image" ? "ht.file_add_img" : "ht.file_add")) +
           '" aria-label="' + esc(t(fm === "image" ? "ht.file_add_img" : "ht.file_add")) + '">' + ic("plus") + '</button>' +
           '<input type="file" class="ib-plus-in" hidden multiple' + (fm === "image" ? ' accept="image/*"' : "") + '>' : "") +
-        (laBot && !priv ? '<button type="button" class="s-btn-ghost ib-ask"' + (_aiBusy ? " disabled" : "") + ' title="' + esc(t("ib.ai_reply_t")) +
-          '" aria-label="' + esc(t("ib.ai_reply")) + '">' +
-          (_aiBusy === "ask" ? spin() : ic("sparkles")) + '<span>' + esc(t(_aiBusy === "ask" ? "ib.ai_busy" : "ib.ai_reply")) + '</span></button>' : "") +
-        '<button type="button" class="s-btn ht-send" aria-label="' + esc(t("ht.gui")) + '">' + ic("send") + '<span>' + esc(t("ht.gui")) + '</span></button>' +
+        // Icons only, the name on hover (owner, 2026-11-27: "chỉ cần giữ icon thôi ... hover vào thì hiển thị"), like
+        // the send button of the main chat and of Teams. The aria-label keeps the name for screen readers.
+        (laBot && !priv ? '<button type="button" class="s-btn-ghost ib-ask ib-icon-btn"' + (_aiBusy ? " disabled" : "") + ' title="' +
+          esc(_aiBusy === "ask" ? t("ib.ai_busy") : t("ib.ai_reply") + ": " + t("ib.ai_reply_t")) + '" aria-label="' + esc(t(_aiBusy === "ask" ? "ib.ai_busy" : "ib.ai_reply")) + '">' +
+          (_aiBusy === "ask" ? spin() : ic("sparkles")) + '</button>' : "") +
+        '<button type="button" class="s-btn ht-send ib-icon-btn" title="' + esc(t("ht.gui")) + '" aria-label="' + esc(t("ht.gui")) + '">' + ic("send") + '</button>' +
       '</div></div>' +
     '</div>';
   }

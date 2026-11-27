@@ -280,6 +280,41 @@ async def owner_reply(conv_id: int, text: str, sender_name: str = "Bạn", via: 
             "conversation": conversations.chi_tiet(c["id"])}
 
 
+async def rename_conversation(conv_id: int, name: str) -> dict:
+    """Rename chat `conv_id` in Javis and, where its platform allows it, on the platform too (owner, 2026-11-27: a name
+    changed in Javis goes back to Zalo, and the other way round).
+
+    The platform first (`channels.rename`: a Zalo or Telegram group's name, a Zalo friend's alias). Whatever it answers,
+    Javis keeps the new name: a chat the platform cannot rename (a Messenger customer, a Telegram user) or would not
+    (not a Zalo friend, the bot not a group admin) is still renamed here, and `warning` says why the platform did not
+    follow. `remote` is True when the platform took the name."""
+    c = conversations.chi_tiet(int(conv_id or 0))
+    if not c:
+        return {"ok": False, "code": "not_found", "error": localefmt.chu("không có hội thoại nào id đó", "no conversation with that id")}
+    new = " ".join(str(name or "").split())
+    if not new:
+        return {"ok": False, "code": "empty", "error": localefmt.chu("tên trống", "empty name")}
+    if len(new) > conversations.MAX_TEN:
+        return {"ok": False, "code": "too_long", "error": localefmt.chu(
+            f"tên dài quá {conversations.MAX_TEN} ký tự", f"name longer than {conversations.MAX_TEN} characters")}
+    channel, chat_type = str(c.get("channel") or ""), str(c.get("chat_type") or "private")
+    kind = channels.rename_kind(channel, chat_type)
+    if new == str(c.get("title") or ""):
+        return {"ok": True, "remote": False, "kind": kind, "warning": "", "unchanged": True, "conversation": c}
+    remote, warning = False, ""
+    if kind:
+        remote, err = await channels.rename(channel, _send_account(c), str(c.get("external_chat_id") or ""), new, chat_type)
+        if not remote:
+            warning = localefmt.chu(f"Đã đổi tên trong Javis, nhưng {channels.nhan_giao_dien(channel)} không nhận: {err}",
+                                    f"Renamed in Javis, but {channels.nhan_giao_dien(channel)} refused: {err}")
+    stored = conversations.rename_conversation(
+        int(c["id"]), new, channel_title=new if remote and kind == "title" else None,
+        alias=new if remote and kind == "alias" else None)
+    if not stored:
+        return {"ok": False, "code": "not_found", "error": localefmt.chu("không có hội thoại nào id đó", "no conversation with that id")}
+    return {"ok": True, "remote": remote, "kind": kind, "warning": warning, "conversation": conversations.chi_tiet(int(c["id"]))}
+
+
 async def owner_send_file(conv_id: int, name: str, data: bytes, caption: str = "", sender_name: str = "Bạn",
                           via: str = "", take_over: bool = True) -> dict:
     """Send one image or file (`data`, shown to the customer as `name`) into conversation `conv_id` as the owner, with
@@ -889,6 +924,14 @@ def register(app, deps: ConversationsDeps):
             return r
         code = r.get("code")
         return JSONResponse(r, status_code=404 if code == "not_found" else 413 if code == "too_big" else 400)
+
+    @router.post("/conversations/{conv_id}/rename")
+    async def conversations_rename(conv_id: int, name: str = Form(...)):
+        """Rename a chat (owner, 2026-11-27). See `rename_conversation`."""
+        r = await rename_conversation(conv_id, name)
+        if r.get("ok"):
+            return r
+        return JSONResponse(r, status_code=404 if r.get("code") == "not_found" else 400)
 
     @router.post("/conversations/{conv_id}/block")
     async def conversations_block(conv_id: int):

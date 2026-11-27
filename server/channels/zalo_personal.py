@@ -587,6 +587,34 @@ async def send_reaction(tk: dict, chat_id: str, msg_id: str, name: str, chat_typ
     return True, ""
 
 
+# Rename from the inbox (owner, 2026-11-27). A group gets a new name for every member (`group rename`); a person gets
+# the owner's own nickname for them, which only this account sees (`friend alias`), like renaming a contact in Zalo.
+RENAMES = {"group": "title", "private": "alias"}
+RENAME_TIMEOUT = 40
+
+
+async def rename(tk: dict, chat_id: str, name: str, chat_type: str = "private"):
+    """Rename a chat on Zalo through the CLI, in the session of the signed-in account. `(ok, error)`."""
+    import zalo_cli
+    import zalo_personal_channel
+    conn = zalo_personal_channel.ket_noi_theo_id(str(tk.get("id") or tk.get("external_id") or ""))
+    home = zalo_cli.home_of(conn) if conn else ""
+    if not home:
+        return False, localefmt.chu("tài khoản Zalo này chưa đăng nhập hoặc đã tắt", "this Zalo account is not signed in or is off")
+    group = str(chat_type or "") == "group"
+    cmd = ["group", "rename"] if group else ["friend", "alias"]
+    ok, _d, err = await zalo_cli.run_cli({"home": home}, cmd, [str(chat_id), str(name)], timeout=RENAME_TIMEOUT)
+    if not ok:
+        return False, str(err or "")[:300]
+    if group:
+        # The read loop names a group from its own thread table (refreshed every few minutes): without this the next
+        # message there would still carry the old name.
+        zalo_personal_channel.note_thread_name(str(conn.get("id") or ""), str(chat_id), str(name))
+    else:
+        zalo_personal_channel.note_alias(str(conn.get("id") or ""), str(chat_id), str(name))
+    return True, ""
+
+
 async def gui_anh(tk: dict, chat_id: str, paths, chat_type: str = "private"):
     """Send images the bot asked for (0.84.3), after its text. `(ok, error)`.
 

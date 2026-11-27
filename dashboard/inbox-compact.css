@@ -191,6 +191,9 @@ a.ib-post:hover .ib-post-go { color: var(--accent); }
 .ib-v5 .ib-cin .s-btn, .ib-v5 .ib-cin .s-btn-ghost { min-height: 38px; font-size: 13px; padding: 0 12px; border-radius: 11px; }
 .ib-v5 .ib-cin .ib-ask { background: var(--ib-ai-wash); color: var(--ib-ai-ink); border: 1px solid color-mix(in srgb, var(--ib-ai) 35%, transparent); }
 .ib-v5 .ib-cin .ht-send { font-size: 14px; }
+/* Javis draft and Send: icons only, square, the name in the tooltip (owner, 2026-11-27). */
+.ib-v5 .ib-cin .ib-icon-btn { width: 38px; padding: 0; justify-content: center; }
+.ib-v5 .ib-cin .ib-icon-btn svg { width: 18px; height: 18px; }
 /* The mic (speak, the words land in the box): an icon only, red and breathing while it listens. */
 .ib-v5 .ib-cin .ib-mic { width: 38px; padding: 0; justify-content: center; color: var(--text2); border: 1px solid transparent; background: none; }
 .ib-v5 .ib-cin .ib-mic:hover { color: var(--text); border-color: var(--border); }
@@ -223,6 +226,10 @@ a.ib-post:hover .ib-post-go { color: var(--accent); }
 .ib-v5 .ib-sec h4 { font-size: 13px; }
 .ib-v5 .ib-kh .ht-item-ava { width: 46px; height: 46px; }
 .ib-v5 .ib-kh b { font-size: 16px; }
+/* Rename (2026-11-27): a quiet pencil at the end of the name line. */
+.ib-v5 .ib-kh .ib-rename { margin-left: auto; flex: none; width: 34px; min-height: 34px; padding: 0; display: inline-flex;
+  align-items: center; justify-content: center; color: var(--text2); border: 1px solid transparent; background: none; border-radius: 10px; }
+.ib-v5 .ib-kh .ib-rename:hover { color: var(--text); border-color: var(--border); }
 .ib-v5 .ib-kh small, .ib-v5 .ib-hint { font-size: 12.5px; }
 .ib-v5 .ib-notebox, .ib-v5 .ib-fld select { font-size: 14px; }
 .ib-v5 .ht-info .ht-tag, .ib-v5 .ht-info .ht-tag-add { font-size: 13px; }

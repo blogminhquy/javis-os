@@ -56,6 +56,14 @@ Optional module attributes (0.459.0, internal API channel):
 
 Pack channels may also set `SPEC.logo_svg`: their own logo, the inner SVG of a 24x24 viewBox, filtered to plain
 drawing elements (`_clean_svg`), so icons.js does not need to know them.
+
+Renaming a chat from the inbox (2026-11-27):
+    RENAMES = {"group": "title", "private": "alias"}   which chats the platform lets Javis rename, and how: "title" is
+                                  the chat's own name, the same for everyone (a Zalo or Telegram group); "alias" is the
+                                  account's private nickname for a person (a Zalo friend alias)
+    async rename(tk, chat_id, name, chat_type) -> (ok, error)
+    A chat type missing from RENAMES (or no `rename`) is renamed in Javis only. Either way the platform's name comes
+    back on its own: a message carrying a name the platform never gave before renames the chat (`conversations`).
 """
 from __future__ import annotations
 
@@ -554,6 +562,28 @@ async def send_file(kenh: str, tk: dict, chat_id: str, path: str, caption: str =
     if kq and kq[0]:
         _delivered(chat_id, files=[str(path)])
     return kq
+
+
+def rename_kind(channel: str, chat_type: str) -> str:
+    """How a chat of this type is renamed on its platform: "title", "alias", or "" when only in Javis."""
+    m = module(channel)
+    if not m or not callable(getattr(m, "rename", None)):
+        return ""
+    kinds = getattr(m, "RENAMES", None) or {}
+    ct = "group" if str(chat_type or "") == "group" else "private"
+    return str(kinds.get(ct) or "") if isinstance(kinds, dict) else ""
+
+
+async def rename(kenh: str, tk: dict, chat_id: str, name: str, chat_type: str = "private"):
+    """Rename a chat on its platform. `(ok, error)`; `(False, reason)` when the channel cannot."""
+    import localefmt
+    if not rename_kind(kenh, chat_type):
+        return False, localefmt.chu("kênh này không cho đổi tên qua Javis", "this channel does not allow renaming from Javis")
+    try:
+        kq = await module(kenh).rename(tk, str(chat_id), str(name), chat_type or "private")
+    except Exception as e:
+        return False, f"{type(e).__name__}: {e}"
+    return kq if isinstance(kq, tuple) and len(kq) == 2 else (False, "bad reply")
 
 
 def _delivered(chat_id, files=(), texts=()) -> None:

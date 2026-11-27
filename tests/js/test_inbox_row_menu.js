@@ -58,10 +58,10 @@ check("no count from an old server reads 0", win.JavisInboxV5.filterMenuHtml({},
 // ---- 2. what the menu offers ----
 const acts = (c) => F.rowMenuItems(c).filter((x) => !x.sep).map((x) => x.act);
 const base = { id: 1, unread_count: 0, pinned: 0, tags: [], mode: "ai", bot_id: "", contact: "", hidden: 0 };
-check("plain chat: unread, pin, tags, hide, block, delete (no mode without a bot, no copy without a contact)",
-  JSON.stringify(acts(base)) === JSON.stringify(["unread", "pin", "tags", "hide", "block", "delete"]), acts(base));
+check("plain chat: unread, pin, tags, rename, hide, block, delete (no mode without a bot, no copy without a contact)",
+  JSON.stringify(acts(base)) === JSON.stringify(["unread", "pin", "tags", "rename", "hide", "block", "delete"]), acts(base));
 check("unread chat offers 'mark read'; pinned offers 'unpin'; hidden offers 'unhide'",
-  JSON.stringify(acts({ ...base, unread_count: 2, pinned: 1, hidden: 1 })) === JSON.stringify(["read", "unpin", "tags", "unhide", "block", "delete"]));
+  JSON.stringify(acts({ ...base, unread_count: 2, pinned: 1, hidden: 1 })) === JSON.stringify(["read", "unpin", "tags", "rename", "unhide", "block", "delete"]));
 const withBot = F.rowMenuItems({ ...base, bot_id: "b", mode: "human" });
 const ai = withBot.find((x) => x.act === "mode_ai"), me = withBot.find((x) => x.act === "mode_human");
 const dr = withBot.find((x) => x.act === "mode_draft");
@@ -81,10 +81,30 @@ check("tags row opens a second view and lists the chat's tags",
   F.rowMenuItems({ ...base, tags: [{ id: 1, name: "VIP" }, { id: 2, name: "Sỉ" }] }).find((x) => x.act === "tags").sub === "VIP, Sỉ" &&
   F.rowMenuItems(base).find((x) => x.act === "tags").more === true);
 check("hide says the chat comes back when the customer writes", F.rowMenuItems(base).find((x) => x.act === "hide").sub === "ht.rm_hide_sub");
-check("no conversation: still a sane menu", acts(null).length === 6);
+check("no conversation: still a sane menu", acts(null).length === 7);
+
+// Owner, 2026-11-27: rename a chat from the inbox; the server says whether the platform follows (`rename_remote`).
+const rn = (c) => F.rowMenuItems({ ...base, ...c }).find((x) => x.act === "rename");
+check("rename: pencil row; its second line says where the name changes",
+  rn({}).icon === "pencil" && rn({}).key === "ht.rm_rename" &&
+  rn({ rename_remote: "title", channel_label: "Zalo" }).sub === "ht.rm_rename_sub_title#Zalo" &&
+  rn({ rename_remote: "alias", channel: "zalo_personal" }).sub === "ht.rm_rename_sub_alias#zalo_personal" &&
+  rn({ channel: "messenger" }).sub === "ht.rm_rename_sub_local#messenger");
+check("rename: the box's hint follows the same three cases",
+  F.renameHint({ rename_remote: "title", channel_label: "Telegram" }) === "ht.rename_hint_title#Telegram" &&
+  F.renameHint({ rename_remote: "alias", channel_label: "Zalo" }) === "ht.rename_hint_alias#Zalo" &&
+  F.renameHint({ channel_label: "Messenger" }) === "ht.rename_hint_local#Messenger");
+const RN = CV.slice(CV.indexOf("  async function renameConv(id) {"), CV.indexOf("  // A chat removed for good"));
+check("rename: the menu and the Info pencil open the edit box and post to /rename, a refusal is shown",
+  /act === "rename"\) \{ closeRowMenu\(false\); return renameConv\(id\); \}/.test(CV) && /rn\.onclick = function \(\) \{ renameConv\(c\.id\); \};/.test(CV) &&
+  /E\.open\(\{/.test(RN) && /"\/conversations\/" \+ id \+ "\/rename"/.test(RN) && /if \(res\.warning\) alert\(res\.warning\);/.test(RN) &&
+  /class="s-btn-ghost ib-rename"/.test(CV) && /singleLine: true/.test(RN));
+const TED = fs.readFileSync(path.join(__dirname, "..", "..", "dashboard", "text-edit-dialog.js"), "utf8");
+check("the edit box has a one-line mode for a name: one row, Enter saves",
+  /rows="' \+ \(o\.singleLine \? 1 : 6\)/.test(TED) && /e\.ctrlKey \|\| e\.metaKey \|\| o\.singleLine/.test(TED));
 
 // 0.447.0: View profile, Block, Delete, by what the platform allows (owner: "xoá, block, view profile").
-const tail = (c) => acts({ ...base, ...c }).slice(4);
+const tail = (c) => acts({ ...base, ...c }).slice(5);
 check("Messenger chat: profile, block, delete (in Javis only)",
   JSON.stringify(tail({ channel: "messenger", external_chat_id: "123" })) === JSON.stringify(["profile", "block", "delete"]) &&
   F.rowMenuItems({ ...base, channel: "messenger", external_chat_id: "123" }).find((x) => x.act === "delete").sub === "ht.rm_delete_sub_local");
@@ -190,7 +210,7 @@ check("Info draws them with the menu's HTML (no menu roles) and runs the menu's 
   /act === "block"\) menuBlock\(c\.id\)/.test(PI) && /act === "unblock"\) menuUnblock\(c\.id\)/.test(PI) &&
   /act === "leave"\) menuLeave\(c\.id\)/.test(PI) && /act === "delete"\) menuDelete\(c\.id\)/.test(PI));
 check("a Block / Unblock / Leave reaches the open chat, which redraws its header and Info",
-  (CV.match(/syncOpen\(id, c\);/g) || []).length === 2 && /function syncOpen\(id, c\)/.test(CV) &&
+  (CV.match(/syncOpen\(id, c\);/g) || []).length === 3 && /function syncOpen\(id, c\)/.test(CV) &&
   /!!\(c\.metadata && c\.metadata\.blocked\), !!\(c\.metadata && c\.metadata\.left\)/.test(CV));
 
 // Owner, 2026-11-21: leaving a group deletes its chat from Javis too; and "ấn vào xoá thì nó không xoá khỏi màn hình".
