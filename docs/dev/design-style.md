@@ -164,6 +164,9 @@ Chủ thử trên iPhone, iPad và app thêm vào màn hình chính, thường g
 - **Icon thay chữ** khi icon đủ nghĩa; không thêm chữ giải thích icon: "icon lửa và số 12 là được" (04/11).
 - **Tới 3 hành động thì hiện thẳng 3 icon,** không gom vào "...". Nhiều hơn thì một nút "..." cho cả hàng; hàng
   trong danh sách hội thoại cũng dùng một nút "..." như app Claude.
+- **Nút hành động trong khung chat chỉ để icon** (27/11, khung chat Chatbot: "nút Javis soạn và nút gửi thì không cần
+  ghi text, chỉ cần giữ icon ... hover vào thì hiển thị"). Tên nằm ở `title` (hiện khi rê chuột) và `aria-label`, mọi
+  cỡ màn hình. Khung chat chính và trang Nhóm vốn đã như vậy.
 - **Số đứng bên phải icon của nó.**
 - **Bộ icon:** Lucide (`dashboard/icons.js`), cộng hai icon riêng của Javis (ngôi sao linh vật, mạng nơ-ron). Biểu tượng
   của Javis là ngôi sao.
@@ -365,3 +368,5 @@ Mọi giải thích nằm sau nút (i), đóng sẵn.
   phù hợp hơn"; thông báo có link dài "bị tràn viền".
 - **22/11:** khung Effort "đang bị lệch"; điện thoại "có đủ không gian để hiển thị để ấn thành 3 nút trên máy tính rồi".
 - **22/11:** "anh muốn đổi lại đưa folder và repo github lên khung trên kiểu như này sẽ dễ nhìn hơn trên điện thoại".
+- **27/11:** nút "Javis soạn" và "Gửi" ở khung chat Chatbot "không cần phải ghi text, chỉ cần giữ icon thôi ... hover vào thì
+  hiển thị cái thông tin chức năng lên là được".
