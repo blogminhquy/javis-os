@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.653.0] - 2026-11-27
+### Added
+- **Pack channels show their own logo.** A pack declaring `logo_svg` gets its logo on the Chatbot and Conversations pages. The SVG is sanitized: shapes only, no scripts or outside links.
+- **Account form declared by the pack.** A pack declaring `TOKEN_FORM` (text, password, and select fields loaded from the pack) replaces the plain token box, with Generate and Copy for secrets. Secret fields never go into the webhook URL. The form appears when adding and when editing an account.
+- **Duplicate reply warning.** Messenger already answers Facebook and Instagram. When a pack channel reaches either network again, those options start unselected, picking one shows a clear warning, and saving needs a ticked acknowledgement. The server refuses it too without the acknowledgement. Existing accounts can still be re-saved, but repointing one to another account on a covered network needs the acknowledgement too.
+
 ## [0.652.0] - 2026-11-27
 ### Improved
 - **Add a Page without pasting the App secret again.** The Facebook Messenger card lists the apps your connected Pages already use. Click one, leave the App secret empty and Log in with Facebook to pick more Pages; Javis reuses the saved App secret. The picker marks Pages already connected and only ticks the new ones, with a hint to click Edit previous settings when Facebook returns only the old Pages.
