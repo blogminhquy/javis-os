@@ -3,9 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 import sqlite3
-import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -15,8 +13,6 @@ from capability_registry import CapabilityRegistry
 from context_compiler import ContextItem, HeuristicTokenizer
 
 SKILL_SOURCE_POLICY_VERSION = "lazy-skill-source-v2"
-_TOKEN_RE = re.compile(r"[a-z0-9]{2,}")
-_EXPLICIT_RE = re.compile(r"\b(skill|kỹ năng|quy trình|workflow|dùng .* để|use .* to)\b", re.IGNORECASE)
 
 
 def _task_candidates(brain, manifests):
@@ -38,26 +34,6 @@ def _task_candidates(brain, manifests):
     return result
 
 
-def _overlay_candidates(brain, lang, query, found, descriptions):
-    """Registry-search skill rows with overlaid summaries; an overlaid skill the search missed is added."""
-    found = [dict(x) for x in found if str(x.get("kind") or "") == "skill"]
-    seen = set()
-    for row in found:
-        slug = str((row.get("metadata") or {}).get("slug") or row.get("name") or "")
-        seen.add(slug)
-        if slug in descriptions:
-            row["summary"] = descriptions[slug]
-    missing = [m for m in skill_router.list_skill_manifests(brain, lang) if m["slug"] in descriptions and m["slug"] not in seen]
-    for manifest in missing:
-        found.extend(_task_candidates(brain, [{**manifest, "description": descriptions[manifest["slug"]]}]))
-    return found
-
-
-def _norm(value: str) -> str:
-    raw = unicodedata.normalize("NFKD", str(value or "").casefold())
-    return " ".join(_TOKEN_RE.findall("".join(c for c in raw if not unicodedata.combining(c))))
-
-
 @dataclass(frozen=True)
 class SkillSelection:
     action: str
@@ -77,10 +53,9 @@ class LazySkillSource:
         self._incomplete: dict[tuple, int] = {}
 
     def refresh(self, brain: str | Path, lang: str = "") -> dict:
-        # `lang` nằm TRONG khoá cache, không chỉ trong lời gọi. Chấm điểm ở `_score` là so
-        # TRÙNG TỪ giữa câu người dùng và mô tả skill, nên mô tả phải cùng thứ tiếng với câu
-        # hỏi thì mới có điểm; đổi ngôn ngữ mà vẫn trả bộ manifest cũ là im lặng vô hiệu hoá
-        # đúng cái vừa sửa. Thiếu bản dịch thì skill_router tự rơi về mô tả gốc.
+        # `lang` is part of the cache key, not only of the call: the manifests carry the description in the
+        # language asked for (`description_<lang>`), and a language switch that kept the old set would score the
+        # request against the wrong text. A missing translation falls back to the original (skill_router).
         key = (str(Path(brain).resolve()).casefold(), str(lang or ""))
         signature = skill_router.skill_manifest_signature(brain)
         cached = self._refresh_cache.get(key)
@@ -97,29 +72,12 @@ class LazySkillSource:
         self._refresh_cache[key] = (signature, dict(result))
         return result
 
-    @staticmethod
-    def _score(query: str, item: dict) -> float:
-        """The word-overlap score this source ranked skills by until 2026-11-27. The live ranking is skill_finder's
-        now; improvement_routing's description evaluator still scores with this one."""
-        query_norm = _norm(query)
-        query_terms = set(query_norm.split())
-        name = _norm(item.get("name") or "")
-        aliases = {_norm(x) for x in item.get("aliases") or []}
-        summary = _norm(item.get("summary") or "")
-        name_terms = set((name + " " + " ".join(aliases)).split())
-        all_terms = name_terms | set(summary.split())
-        coverage = len(query_terms & all_terms) / max(1, len(query_terms))
-        discriminative = len(query_terms & name_terms) / max(1, len(name_terms))
-        phrase = bool(query_norm and (query_norm in summary or query_norm in name))
-        explicit = query_norm == name or query_norm in aliases
-        return min(1.0, coverage * 0.52 + discriminative * 0.25 +
-                   (0.13 if phrase else 0) + (0.25 if explicit else 0))
-
     def resolve(self, brain: str | Path, query: str, min_score: float = 0.24,
                 ambiguity_margin: float = 0.08, max_body_chars: int = 12000,
                 lang: str = "", descriptions: dict | None = None, session_key: str = "") -> SkillSelection:
-        """`descriptions`: owner-applied routing descriptions (M4) for this chat, {slug: text}. With
-        any, ranking runs over the frozen manifest projection so the overlay text is what is scored."""
+        """Preload the body of the skill this request clearly needs, ranked by skill_finder. `descriptions`:
+        owner-applied routing descriptions (M4) for this chat, {slug: text}, scored instead of the file's own.
+        `min_score` and `ambiguity_margin` belonged to the word-overlap ranking this replaced; they are ignored."""
         from improvement_task_skill_scope import current, ScopeUnavailable
         from improvement_blobs import AssetUnavailable
         try:

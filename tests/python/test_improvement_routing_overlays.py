@@ -104,17 +104,17 @@ class RoutingOverlayTests(base.ActivationBase):
         with self.assertRaisesRegex(ValueError, "translated"):
             live.evaluate(self.owner, self.target, DESCRIPTION, CASES, event_key="routing-translated")
 
-    def test_overlay_candidates_keep_the_search_set(self):
-        from lazy_skill_runtime import _overlay_candidates
-        found = [{"name": "viet-email", "kind": "skill", "summary": "Soan thu", "metadata": {"slug": "viet-email"}},
-                 {"name": "web-tool", "kind": "tool", "summary": "x", "metadata": {}}]
-        rows = _overlay_candidates(self.root, "", "doi soat", found, {"report": DESCRIPTION})
-        self.assertEqual([r["metadata"]["slug"] for r in rows], ["viet-email", "report"])
-        self.assertEqual(rows[0]["summary"], "Soan thu")
-        self.assertEqual(rows[1]["summary"], DESCRIPTION)
-        rows = _overlay_candidates(self.root, "", "q", [{"name": "report", "kind": "skill", "summary": "old",
-                                                        "metadata": {"slug": "report"}}], {"report": DESCRIPTION})
-        self.assertEqual([r["summary"] for r in rows], [DESCRIPTION])
+    def test_live_evaluation_ranks_the_brain_index_with_the_overlay(self):
+        from capability_registry import CapabilityRegistry
+        live = R.Routing(self.assets, registry=CapabilityRegistry(self.root.parent / "registry-index"))
+        decide = live._decider(self.root)
+        plain = decide("doi soat cong no khach hang", None)
+        overlaid = decide("doi soat cong no khach hang", {"report": DESCRIPTION})
+        self.assertEqual(overlaid["slug"], "report")
+        self.assertIn(overlaid["action"], ("load", "suggest"))
+        self.assertNotEqual(plain, overlaid)
+        report = live.evaluate(self.owner, self.target, DESCRIPTION, CASES, event_key="routing-live-index")["report"]
+        self.assertEqual(report["measured_router"], "javis_skill_finder")
 
     def test_prompt_index_uses_overlays_only_when_the_caller_says_api(self):
         import main

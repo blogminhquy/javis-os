@@ -618,29 +618,60 @@ def _weigh(root, session: str, ranked: list) -> list:
     return out
 
 
+def index_from_manifests(manifests, descriptions: dict | None = None) -> SkillIndex:
+    """A description-only index over skill manifests ({slug, name, group, description}): no body, no learned request.
+    The deterministic model the routing-description evaluator scores with (improvement_routing.route), where only
+    the description may change between the two views it compares. `descriptions` overrides some of them."""
+    docs = []
+    for m in manifests or []:
+        meta = dict(m)
+        slug = str(meta.get("slug") or "")
+        if descriptions and slug in descriptions:
+            meta["description"] = descriptions[slug]
+        docs.append(_make_doc(meta, "", ()))
+    return SkillIndex(docs)
+
+
+def choose(idx: SkillIndex, query: str, recent=(), *, root=None, session: str = "", exclude=()) -> list:
+    """The suggestions an index gives for a request, best first (at most SUGGEST_MAX); the first carries its margin
+    over the runner-up among ALL skills. With `root`, the brain's learned weights apply (see _weigh)."""
+    if not len(idx):
+        return []
+    ranked = idx.rank(query, recent)
+    if root is not None:
+        ranked = _weigh(root, session, ranked)
+    ranked = [m for m in ranked if m.slug not in set(exclude or ())]
+    if not ranked:
+        return []
+    top = ranked[0].score
+    out = [m for m in ranked
+           if m.score >= SUGGEST_MIN_UNITS and m.coverage >= SUGGEST_MIN_COVERAGE
+           and m.score >= SUGGEST_RELATIVE * top][:SUGGEST_MAX]
+    if out and out[0] is ranked[0]:
+        runner = ranked[1].score if len(ranked) > 1 else 0.0
+        out[0] = Match(**{**out[0].__dict__, "margin": (top / runner) if runner else 0.0})
+    return out
+
+
 def suggest(root, query: str, recent=(), session: str = "", lang: str = "", exclude=(),
             descriptions: dict | None = None) -> list:
     """The skills worth putting in front of the model this turn, best first (at most SUGGEST_MAX). [] when nothing
     fits well enough. Never raises."""
     try:
-        idx = index_for(root, lang, descriptions)
-        if not len(idx):
-            return []
-        ranked = _weigh(root, session, idx.rank(query, recent))
-        ranked = [m for m in ranked if m.slug not in set(exclude or ())]
-        if not ranked:
-            return []
-        top = ranked[0].score
-        out = [m for m in ranked
-               if m.score >= SUGGEST_MIN_UNITS and m.coverage >= SUGGEST_MIN_COVERAGE
-               and m.score >= SUGGEST_RELATIVE * top][:SUGGEST_MAX]
-        if out and out[0] is ranked[0]:
-            runner = ranked[1].score if len(ranked) > 1 else 0.0
-            out[0] = Match(**{**out[0].__dict__, "margin": (top / runner) if runner else 0.0})
-        return out
+        return choose(index_for(root, lang, descriptions), query, recent, root=root, session=session,
+                      exclude=exclude)
     except Exception as exc:  # noqa: BLE001
         print(f"[skill_finder] suggest: {type(exc).__name__}: {exc}", file=sys.stderr)
         return []
+
+
+def decision(matches: list) -> dict:
+    """What the main chat does with a request, as data: "load" (the first skill's body is preloaded), "suggest"
+    (the skills are offered with their description, the model picks) or "none". `slug` is the first skill."""
+    if not matches:
+        return {"action": "none", "slug": "", "suggested": [], "score": 0.0}
+    return {"action": "load" if confident(matches) else "suggest", "slug": matches[0].slug,
+            "suggested": [m.slug for m in matches], "score": round(matches[0].score, 6)}
 
 
 def confident(matches: list) -> bool:

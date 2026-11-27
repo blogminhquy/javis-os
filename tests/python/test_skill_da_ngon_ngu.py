@@ -124,9 +124,9 @@ check("manifest (Phase 8) cũng theo ngôn ngữ",
 # ============================================================
 # 3b. Phase 8: chấm điểm skill là so TRÙNG TỪ, nên đây là chỗ ngôn ngữ đổi HÀNH VI
 # ============================================================
-# Router trong system prompt đưa cả danh sách cho model đọc, nên mô tả lệch tiếng vẫn chọn
-# đúng. `LazySkillSource._score` thì không có model nào cả - nó đếm từ chung giữa câu hỏi và
-# mô tả. Câu tiếng Anh gặp mô tả tiếng Việt là điểm gần 0, skill không bao giờ được chọn.
+# The Phase 8 source ranks with skill_finder (2026-11-27), which compares the words of the request with the
+# skill's text; no model reads it. An English request against a Vietnamese description scores far lower, so the
+# description in the request's language (`description_<lang>`) is what makes the skill found.
 import lazy_skill_runtime
 import capability_registry
 

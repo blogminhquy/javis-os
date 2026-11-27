@@ -6801,7 +6801,7 @@
   "improve.routing_title": "Định tuyến: mô tả skill",
   "improve.routing_hint": "Mô tả skill quyết định khi nào khung chat chính của Javis chọn skill này (bộ não chạy qua API). Mỗi dòng câu hỏi mẫu có dạng: loại | skill nên chọn | câu hỏi, với loại là positive (nên chọn skill này), negative (không nên chọn skill nào, để trống ô giữa) hoặc competing (nên chọn skill khác). Bản mô tả làm câu negative hoặc competing bị chọn sai sẽ bị loại. Chat với trợ lý chỉ dùng tên skill nên không bị ảnh hưởng; Claude Code và Codex tự chọn skill theo thư mục skill nên chưa đo được ở đây.",
   "improve.routing_active": "Đang dùng ở khung chat chính",
-  "improve.routing_description": "Mô tả mới (tối đa 150 ký tự)",
+  "improve.routing_description": "Mô tả mới (tối đa 1.024 ký tự)",
   "improve.routing_cases": "Câu hỏi mẫu",
   "improve.routing_evaluate": "Chấm thử",
   "improve.routing_verdict": "Kết quả",
