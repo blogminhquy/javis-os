@@ -447,6 +447,28 @@ d = client.get("/messenger/setup").json()
 check("setup lists the saved app with its Pages and never the secret",
       [a["app_id"] for a in d.get("apps", [])] == [APP] and "Shop Áo" in d["apps"][0]["pages"]
       and APP_SECRET not in json.dumps(d), d.get("apps"))
+# A Page or Threads account is one connection of this Javis, not of one brain: the Connections card of EVERY brain lists
+# it and offers its app (owner, 27/11/2026: "tất cả bộ não sẽ phải nhìn thấy tất cả các kết nối").
+other_app = "777888999000"
+oid, _ = channel_accounts.create_account({"channel": "messenger", "external_id": "888999000111", "brain": "brain-a",
+                                          "token": "888999000111 EAAother" + "o" * 40 + " " + "f" * 32,
+                                          "label": "Shop Nón", "meta": {"app_id": other_app, "bot_name": "Shop Nón"}})
+tid, _ = channel_accounts.create_account({"channel": "threads", "external_id": "424242", "brain": "brain-a",
+                                          "token": "THtok" + "t" * 40, "label": "@shopnon",
+                                          "meta": {"username": "shopnon", "app_id": other_app}})
+for b in ("brain-b", "brain-a", ""):
+    q = {"brain": b} if b else {}
+    ms = client.get("/messenger/setup", params=q).json()
+    th = client.get("/threads/setup", params=q).json()
+    check(f"the Connections card of brain '{b or '(none)'}' lists the Pages and Threads accounts of every brain",
+          {"888999000111", PAGE} <= {a["page_id"] for a in ms.get("accounts", [])}
+          and "424242" in {a["user_id"] for a in th.get("accounts", [])}
+          and other_app in {a["app_id"] for a in ms.get("apps", [])}, (b, ms.get("accounts"), th.get("accounts")))
+check("listing every brain never sends a token or a secret",
+      "EAAother" not in json.dumps(ms) and "f" * 32 not in json.dumps(ms) and "THtok" not in json.dumps(th))
+channel_accounts.delete_account(oid)
+channel_accounts.delete_account(tid)
+
 r = client.get("/messenger/oauth/result", params={"state": "st-ready"}).json()
 conn = {p["id"]: p.get("connected") for p in r.get("pages", [])}
 check("the login result marks the Page this Javis already has",

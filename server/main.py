@@ -31193,12 +31193,12 @@ def _ms_account_view(a: dict) -> dict:
             "bots": [{"id": b["id"], "name": b.get("name"), "enabled": bool(b.get("enabled"))} for b in bots]}
 
 
-def _ms_saved_apps(brain: str = "") -> list:
+def _ms_saved_apps() -> list:
     """The Meta apps already used by a connected Page that still hold their App secret: [{app_id, pages}].
     The card offers them so adding another Page is one more Log in with Facebook, with no secret to paste again
     (owner, 27/11/2026). Never carries the secret."""
     apps: dict = {}
-    for a in channel_accounts.list_accounts(channel="messenger", brain=str(brain or "").strip()):
+    for a in channel_accounts.list_accounts(channel="messenger"):
         app_id = str((a.get("meta") or {}).get("app_id") or "").strip()
         if not app_id or not _ms_saved_secret(app_id, [a]):
             continue
@@ -31265,11 +31265,14 @@ async def messenger_setup_info(request: Request, brain: str = ""):
     """What the wizard needs before the owner types anything: the webhook address, whether it is
     HTTPS, the verify token, and the Messenger accounts already saved."""
     url = _ms_webhook_url(request)
-    accs = channel_accounts.list_accounts(channel="messenger", brain=str(brain or "").strip())
+    # Every brain lists every Page (owner, 27/11/2026: "tất cả bộ não sẽ phải nhìn thấy tất cả các kết nối"). A Page is
+    # one connection of this Javis: the Fanpage tools already reach all of them, so a card filtered by the open brain
+    # showed one set of Pages here and another there. `brain` stays only as the brain a NEW Page is saved under.
+    accs = channel_accounts.list_accounts(channel="messenger")
     base = url[: -len("/messenger/webhook")]
     return {"ok": True, "webhook_url": url, "https": url.startswith("https://"),
             "verify_token": _ms_verify_token(), "accounts": [_ms_account_view(a) for a in accs],
-            "apps": _ms_saved_apps(brain),
+            "apps": _ms_saved_apps(),
             "oauth_redirect": base + messenger_oauth.CALLBACK_PATH, "privacy_url": base + messenger_oauth.PRIVACY_PATH}
 
 
@@ -31618,7 +31621,8 @@ async def threads_setup_info(request: Request, brain: str = ""):
     and the connected accounts. Never a token."""
     import threads_oauth
     base = _ms_base(request)
-    accs = channel_accounts.list_accounts(channel="threads", brain=str(brain or "").strip())
+    # Every brain lists every Threads account, the same rule as the Pages above (owner, 27/11/2026).
+    accs = channel_accounts.list_accounts(channel="threads")
     return {"ok": True, "https": base.startswith("https://"), "webhook_url": base + "/threads/webhook",
             "verify_token": _th_verify_token(), "redirect_url": base + threads_oauth.CALLBACK_PATH,
             "uninstall_url": base + threads_oauth.UNINSTALL_PATH, "delete_url": base + threads_oauth.DELETE_PATH,

@@ -57,7 +57,7 @@ Phần dễ sai nhất khi tự làm là token: dán token người dùng thay v
 4. Javis đổi sang token Trang không hết hạn, khai webhook của app với `messages`, `messaging_postbacks` và `message_echoes` (để bot thấy file nhân viên gửi từ hộp thư Trang), gắn Trang vào app, lưu kênh rồi hiện bảng kiểm tra từng dòng xanh hoặc đỏ kèm cách sửa.
 5. Vào **Chatbot**, **Bot** để tạo bot cho kênh vừa nối (mục 3).
 
-Mỗi Trang đã nối có nút **Kiểm tra**, **Sửa tự động** (khai lại webhook và gắn lại Trang) và **Đổi token**. Bộ não nào cũng gọi được tool `messenger_check` và `messenger_repair` khi bot im lặng. Muốn Javis nhắn khách từ khung chat ("trả lời chị Lan là còn size M"), bộ não dùng `inbox_find` để tìm cuộc chat và `inbox_reply` để gửi, đi đúng Page hoặc Instagram của cuộc đó. `inbox_reply` gửi được cả ảnh, file có sẵn trong brain ("gửi chị Lan bảng giá trong attachments"). Messenger chỉ nhận tin trong 24 giờ kể từ tin cuối của khách. Xác minh doanh nghiệp và nộp duyệt `pages_messaging` (mục 4) vẫn làm trên trang Meta.
+Brain nào cũng thấy đủ các Trang đã nối trên thẻ này. Mỗi Trang đã nối có nút **Kiểm tra**, **Sửa tự động** (khai lại webhook và gắn lại Trang) và **Đổi token**. Bộ não nào cũng gọi được tool `messenger_check` và `messenger_repair` khi bot im lặng. Muốn Javis nhắn khách từ khung chat ("trả lời chị Lan là còn size M"), bộ não dùng `inbox_find` để tìm cuộc chat và `inbox_reply` để gửi, đi đúng Page hoặc Instagram của cuộc đó. `inbox_reply` gửi được cả ảnh, file có sẵn trong brain ("gửi chị Lan bảng giá trong attachments"). Messenger chỉ nhận tin trong 24 giờ kể từ tin cuối của khách. Xác minh doanh nghiệp và nộp duyệt `pages_messaging` (mục 4) vẫn làm trên trang Meta.
 
 Cách làm tay bên dưới vẫn dùng được.
 
