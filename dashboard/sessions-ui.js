@@ -1468,7 +1468,8 @@
       try {
         var d = await (await fetch("/agents/" + encodeURIComponent(slug) + "/learned?brain=" +
                                    encodeURIComponent(brain()))).json();
-        out = (d && d.ok) ? { slug: slug, lessons: d.lessons || [] } : { slug: slug, lessons: [], loi: true };
+        out = (d && d.ok) ? { slug: slug, lessons: d.lessons || [], memory: d.memory || null }
+                          : { slug: slug, lessons: [], loi: true };
       } catch (e) { out = { slug: slug, lessons: [], loi: true }; }
       agentHoc = out;
       if (hocDangNap && hocDangNap.p === p) hocDangNap = null;
@@ -1511,6 +1512,7 @@
       '<div class="pd-learn-head"><span class="pd-hint">' + esc(pdT("ags.learned_hint")) + "</span>" +
         (info ? info.btn(pdT("info.more")) : "") + "</div>" +
       (info ? info.body(explain) : '<div class="pd-note">' + ic("info") + "<span>" + explain + "</span></div>") +
+      (window.JavisMemStrip ? window.JavisMemStrip(h.memory) : "") +
       listToolsHtml(findHtml("learned", h.lessons.length, pdT("proj.find_notes")),
         '<button class="pd-add pd-nadd" type="button">' + ic("plus") + " " + esc(pdT("ags.lesson_add")) + "</button>") +
       '<div class="pd-list">' + hocRowsHtml(h) + "</div>" +

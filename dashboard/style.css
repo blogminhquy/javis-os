@@ -4154,6 +4154,14 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 /* Tab "Đã học" (2026-11-13): the notes Javis keeps about the project. A note is a sentence to read, so it wraps in
    full and uses the reading size of the drawer (14px, 15px on a phone), not the small size of a file path. */
 .pd-learn-head { display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 1.5; }
+/* 2026-11-27: how the assistant's memory reaches its prompt (agent_recall). One quiet line, a warning only when due. */
+.pd-mem { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.pd-mem-row { display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 1.5; color: var(--text2); }
+.pd-mem-row .ic { flex: none; }
+.pd-mem-txt { flex: 1 1 auto; min-width: 0; }
+.pd-mem-warn { color: var(--warn-ink, #b7791f); background: var(--warn-wash, rgba(210, 160, 60, 0.14));
+  border-radius: 8px; padding: 6px 8px; align-items: flex-start; }
+.pd-mem-warn .ic { margin-top: 2px; }
 .pd-nrow { display: flex; align-items: flex-start; gap: 6px; padding: 9px 9px 9px 11px; border-radius: 9px;
   border: 1px solid var(--border); background: var(--bg); }
 .pd-nbody { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }

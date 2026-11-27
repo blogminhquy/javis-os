@@ -490,8 +490,13 @@ class TeamRunner:
                  learning: Any = None, contrib_reader: Any = None, docs_block: Any = None, approvals: Any = None,
                  acceptance: Any = None, check_command: Optional[Callable] = None,
                  brain_root: Optional[Callable] = None, work_dir: Optional[Callable] = None,
-                 job_done: Optional[Callable] = None, skill_block: Optional[Callable] = None):
+                 job_done: Optional[Callable] = None, skill_block: Optional[Callable] = None,
+                 recall_block: Optional[Callable] = None):
         self.teams = teams
+        # 2026-11-27: `recall_block(brain_id, agent_key, query) -> str`, the passages of the member's own long-term
+        # memory that match this turn (agent_recall.py). A large memory is no longer preloaded whole, and a text-only
+        # turn cannot search it itself, so the host puts what matches in the prompt. None: no recall block.
+        self.recall_block = recall_block
         # 0.449.0: `job_done(team, task)` runs once a job is marked done (GitHub repos of the team chat get pushed there).
         # Called on the loop, never raises into the runner. None: nothing happens after a job.
         self.job_done = job_done
@@ -2822,6 +2827,7 @@ class TeamRunner:
                           "\n".join(INTERNAL_GROUP_NOTE)).lstrip(),
                "prompt": (self._context(team, agent_key, role, task, step, authority_pin=pin)
                           + self._skills(team, body, (task or {}).get("title") or "", (task or {}).get("intent") or "")
+                          + self._recall(team, agent_key, body, task)
                           + self._docs(team, tool_turn) + "\n\n" + body),
                "thread": f"teammate:{team_id}:{agent_key}", "task_id": task["id"] if task else None,
                "step_id": step["step_id"] if step else None, "turn_id": turn_id,
@@ -2833,6 +2839,16 @@ class TeamRunner:
                "once_key": once_key(task["id"], step) if tool_turn and step else ""}
         return {"pre": "done", "engine": str(engine or ""), "model": str(model or ""), "fn": fn, "req": req,
                 "tool_key": self._work_key(team) if tool_turn else ""}
+
+    def _recall(self, team: dict, agent_key: str, body: str, task: Optional[dict]) -> str:
+        if self.recall_block is None:
+            return ""
+        query = "\n".join(x for x in (str((task or {}).get("title") or ""), str(body or "")[-2000:]) if x.strip())
+        try:
+            block = str(self.recall_block(team["brain_id"], agent_key, query) or "")
+        except Exception:  # noqa: BLE001 - memory is context; a broken index must not cost the turn
+            return ""
+        return ("\n\n" + block) if block else ""
 
     def _docs(self, team: dict, tools: bool = False) -> str:
         if self.docs_block is None:

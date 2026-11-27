@@ -42,6 +42,7 @@ import mcp_store
 import once_ledger
 import turn_ledger
 import scout
+import agent_recall   # javis_recall: an assistant's memory searched instead of preloaded (2026-11-27)
 import code_mode
 import delivery_ledger   # issues #1846, #1851: what a tool delivered is not sent again
 import secret_guard
@@ -2460,6 +2461,13 @@ async def _discover_all_cached(mode="full", vault_root=None, include_plugins=Tru
         s_spec, s_entry = scout.build(vault_root, mode)
         tools_spec.append(s_spec)
         route[s_spec["fn"]] = s_entry
+    # javis_recall (2026-11-27): searches an assistant's long-term memory and documents (agent_recall.py), the layer a
+    # large memory relies on now that it is no longer preloaded whole. Read-only; never for a customer bot (it reads
+    # the owner's assistants).
+    if agent_recall.tool_available() and not for_bot:
+        r_spec, r_entry = agent_recall.build(vault_root, mode)
+        tools_spec.append(r_spec)
+        route[r_spec["fn"]] = r_entry
 
     # PLUGIN: tool do plugin đăng ký (bundled + vault) → mọi engine, tôn trọng min_mode.
     # Trùng tên tool đã có (MCP/builtin) → BỎ QUA (không cho plugin shadow tool lõi).

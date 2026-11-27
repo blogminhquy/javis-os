@@ -336,8 +336,7 @@ async def run(cli, prompt: str) -> AsyncIterator[dict]:
         elif continuing:
             text = prompt
         else:
-            instr = (cli.instructions or "").strip()
-            text = (instr + "\n\n" + prompt) if instr else prompt
+            text = agy.first_message(cli.instructions, prompt)
         try:
             await asyncio.to_thread(_write, proc, message_line(text))
             sent = True
