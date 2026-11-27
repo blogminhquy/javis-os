@@ -7477,18 +7477,12 @@
   }
 
   // ---- Trang Kênh Admin (0.85.0): mỗi kênh một tab ----
-  // Kênh ADMIN là đường CHỦ nói chuyện với Javis qua app chat, đủ quyền như dashboard. Bot trả lời
-  // KHÁCH nằm ở trang Chatbot, và tên trang nói rõ điều đó vì hai thứ từng bị nhầm.
-  //
-  // Mỗi tab cùng một khuôn, và khuôn đó sửa đúng chỗ người dùng vấp ở bản cũ:
-  //   - Đầu tab là CÔNG TẮC Bật/Tắt có tác dụng ngay. Bản cũ là một ô checkbox phải nhớ bấm Lưu
-  //     mới ăn, trong khi nút bên dưới lại ghi "Lưu & bật": bỏ tích rồi bấm "Lưu & bật" thì kênh
-  //     TẮT. Hai điều khiển nói hai ý ngược nhau.
-  //   - Trạng thái (nhãn màu + một câu nói việc cần làm tiếp) đứng ngay dưới tên kênh, không nằm
-  //     lọt thỏm dưới hai nút như trước.
-  //   - Hai bước đánh số: 1. Kết nối, 2. Ai được dùng. Nút Lưu ở CUỐI, ghi đúng việc nó làm
-  //     ("Lưu và bật kênh" khi đang tắt, "Lưu thay đổi" khi đang chạy).
-  // Một cột, nút xuống cuối: trang cài đặt phải đọc được trên điện thoại.
+  // Admin channels: the OWNER talks to Javis from a chat app, with dashboard rights. Bots answering CUSTOMERS live on
+  // the Chatbot page (the two were confused once). Every tab, one shape, fixing what tripped people before:
+  //   - an On/Off SWITCH at the top acting at once (the old tick needed Save, next to a "Save & enable" button);
+  //   - the status (coloured label + the next thing to do) right under the channel name;
+  //   - two numbered steps, 1. Connect, 2. Who may use it; Save at the END, saying what it does.
+  // One column, buttons last: a settings page must read on a phone.
   const ADMIN_CH = [
     { key: "telegram", set: "telegram", api: "/telegram", title: "Telegram",
       fields: [["token", true, "123456:ABC..."]], allowKey: "chat_id", openAllow: true },
