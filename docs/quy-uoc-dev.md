@@ -5,6 +5,18 @@ MỌI lượt chat của Javis, có trần ngân sách (`tests/python/test_promp
 dev thì người dùng Javis không bao giờ cần. Để ở đây thì viết bao nhiêu cũng được, không đánh
 thuế lên lượt chat nào cả.
 
+## Việc đầu tiên của phiên: gắn số phiên bản vào tên phiên (từ 2026-11-27)
+
+Chủ repo 27/11/2026: mở danh sách phiên là phải biết phiên nào bắt đầu từ bản nào. Ngay khi đọc
+tới đây (lượt đầu, hoặc trước khi tạo nhánh), gọi `get_session` (không truyền `session_id`) lấy tên phiên, rồi
+`set_session_title` đổi thành `v<bản> · <tên hiện tại>`, với `<bản>` là nội dung file `VERSION`
+lúc mở phiên (ví dụ `v0.649.0 · Sửa lỗi gửi ảnh Zalo`). Tên đã mở đầu bằng `v` kèm số phiên bản
+thì để nguyên. Không có tool `set_session_title` (phiên chạy trên máy, không phải cloud) thì bỏ qua.
+
+Không làm bằng hook SessionStart: hook phải nằm trong `.claude/settings.json`, mà
+`tests/python/test_ignore_files.py` cấm track mọi file tên `settings.json` (chặn lộ bí mật), và
+Javis trên máy người dùng cũng chạy `claude` với cwd là repo này.
+
 ## Nhánh, PR và merge
 
 - Vẫn phát triển trên nhánh riêng và mở PR như thường lệ.
