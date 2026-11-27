@@ -15,6 +15,13 @@ after. The line is a hidden block (`<!-- JAVIS_DOI: {...} -->`) in a message sto
 `push_to_chat`, so a refresh draws it again (dashboard/chat-doi.js). Undo calls the existing route for
 that kind (cancel a reminder, delete a loop, agent, workflow or skill); only NEW items get an Undo,
 because putting an edited file back needs its old text, which this snapshot does not keep.
+
+The snapshot covers the whole brain, and loops, reminders and Kanban jobs keep running while a chat turn
+does. Owner, 27/11/2026: a background flow for a POSCake order created "Nhắc thanh toán đơn 3472" during
+an unrelated chat, and the chat got "Đã tạo lịch" lines for it. So an item counts for the turn only when
+it is not someone else's: a schedule or loop that names another dashboard chat is that chat's, and one
+that appeared while background work ran in the brain (memory_control.background_writer) is that work's.
+A schedule that fired or was paused is not one the turn removed.
 """
 from __future__ import annotations
 
@@ -56,6 +63,55 @@ def _pending_reminders(root: Path) -> Dict[str, str]:
             for r in (d or {}).get("reminders", []) if r.get("status") == "pending" and r.get("id")}
 
 
+def _reminder_rows(root: Path) -> Dict[str, dict]:
+    try:
+        d = json.loads((root / "Javis" / "reminders.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {str(r.get("id")): r for r in (d or {}).get("reminders", []) if isinstance(r, dict) and r.get("id")}
+
+
+_OWNER_RE = re.compile(r"^owner_chat:\s*(.*?)\s*$", re.M)
+
+
+def _loop_owner(root: Path, slug: str) -> str:
+    try:
+        head = (root / "Javis" / "loops" / f"{slug}.md").read_text(encoding="utf-8")[:3000]
+    except OSError:
+        return ""
+    m = _OWNER_RE.search(head)
+    return m.group(1).strip().strip("\"'") if m else ""
+
+
+def _file_mtime(root: Path, kind: str, slug: str) -> float:
+    path = {"loop": root / "Javis" / "loops" / f"{slug}.md", "agent": root / "agents" / f"{slug}.md",
+            "workflow": root / "workflows" / f"{slug}.md", "skill": root / "skills" / slug / "SKILL.md"}.get(kind)
+    try:
+        return path.stat().st_mtime if path is not None else 0.0
+    except OSError:
+        return 0.0
+
+
+def _background_at(root: Path, ts: float) -> bool:
+    if not ts:
+        return False
+    try:
+        import memory_control
+        return memory_control.background_at(root, ts)
+    except Exception:  # noqa: BLE001 - unknown means "not background": the old behaviour
+        return False
+
+
+def _someone_elses(root: Path, chat: str, item_chat: str, ts: float) -> bool:
+    """True when this change belongs to another chat or to background work, not to the turn of `chat`."""
+    item_chat = str(item_chat or "").strip()
+    if chat and item_chat == chat:
+        return False
+    if chat and item_chat.startswith("web:"):
+        return True
+    return _background_at(root, ts)
+
+
 def snapshot(brain_root) -> dict:
     """Cheap: one stat per capability file plus one small JSON read."""
     root = Path(brain_root)
@@ -81,23 +137,47 @@ def _title(root: Path, kind: str, slug: str) -> str:
     return (m.group(1).strip().strip("\"'") if m else slug)[:120]
 
 
-def diff(before: Optional[dict], brain_root) -> List[dict]:
-    """[{kind, id, title, act: new|updated|removed}] for the turn, at most MAX_ITEMS."""
+def diff(before: Optional[dict], brain_root, chat: str = "") -> List[dict]:
+    """[{kind, id, title, act: new|updated|removed}] for the turn, at most MAX_ITEMS.
+
+    `chat` is the turn's own chat (`web:<session id>`): changes that name another chat, or that appeared while
+    background work ran in this brain, are left out (see the module note)."""
     if not before:
         return []
     root = Path(brain_root)
     after = snapshot(root)
+    chat = str(chat or "").strip()
+    rows = _reminder_rows(root)
     items: List[dict] = []
     for kind in KINDS:
         old, new = before.get(kind) or {}, after.get(kind) or {}
         for key in new:
             if key not in old:
-                title = new[key] if kind == "reminder" else _title(root, kind, key)
+                if kind == "reminder":
+                    r = rows.get(key) or {}
+                    if _someone_elses(root, chat, r.get("chat_id"), float(r.get("created_at") or 0)):
+                        continue
+                    title = new[key]
+                else:
+                    owner = _loop_owner(root, key) if kind == "loop" else ""
+                    if _someone_elses(root, chat, owner, _file_mtime(root, kind, key)):
+                        continue
+                    title = _title(root, kind, key)
                 items.append({"kind": kind, "id": key, "title": title or key, "act": "new"})
             elif kind != "reminder" and new[key] != old[key]:
+                owner = _loop_owner(root, key) if kind == "loop" else ""
+                if _someone_elses(root, chat, owner, _file_mtime(root, kind, key)):
+                    continue
                 items.append({"kind": kind, "id": key, "title": _title(root, kind, key), "act": "updated"})
         for key in old:
             if key not in new:
+                if kind == "reminder":
+                    r = rows.get(key)
+                    # Fired (done/failed) or paused is not a removal; only a cancel or a delete is.
+                    if r is not None and r.get("status") != "cancelled":
+                        continue
+                    if r is not None and _someone_elses(root, chat, r.get("chat_id"), 0.0):
+                        continue
                 items.append({"kind": kind, "id": key, "title": (old[key] if kind == "reminder" else key) or key,
                               "act": "removed"})
     return items[:MAX_ITEMS]

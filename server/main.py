@@ -23501,7 +23501,9 @@ async def _chat_socket(ws):
                 except Exception as _e:  # noqa: BLE001
                     print(f"[memory receipt] {type(_e).__name__}: {_e}", file=sys.stderr)
                 try:
-                    _doi = await asyncio.to_thread(change_receipt.diff, _cap_snap, _brain_root(brain))
+                    # 27/11/2026: only what THIS chat made; a loop or order flow running meanwhile is not its.
+                    _doi = await asyncio.to_thread(change_receipt.diff, _cap_snap, _brain_root(brain),
+                                                   f"{WEB_CHAT_PREFIX}{conv_sid}")
                     # 27/11/2026: an assistant Javis made in this turn without a model gets one that fits.
                     # The receipt line names the model, so the owner sees it and can change it.
                     for _it in _doi or []:
