@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.658.2] - 2026-11-27
+### Sửa lỗi
+- **Brain nào cũng thấy đủ Fanpage đã nối.** Trước đây thẻ Facebook Messenger và Threads ở trang Kết nối chỉ hiện tài khoản của brain đang mở, nên brain này thấy Trang này, brain kia thấy Trang khác. Giờ mọi brain thấy cùng một danh sách Trang, tài khoản Threads và app đã lưu. Trang mới nối vẫn ghi theo brain đang mở.
+
 ## [0.658.1] - 2026-11-27
 ### Sửa lỗi
 - **Antigravity không còn mất câu hỏi khi ngữ cảnh quá dài.** Cộng sự có bộ nhớ lớn (vài chục KB) chạy bằng Antigravity từng trả lời "yêu cầu bị cắt mất, gửi lại giúp em" dù câu hỏi rất ngắn, vì `agy` cắt phần cuối tin nhắn đầu, đúng chỗ câu hỏi nằm. Nay tin nhắn dài thì câu hỏi mới nhất được chép thêm lên đầu, nên cắt kiểu gì model vẫn thấy và trả lời luôn.
