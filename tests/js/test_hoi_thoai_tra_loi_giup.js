@@ -53,8 +53,10 @@ check("lỗi mạng cũng được báo, không nuốt", /catch \(e\) \{ loi = e
 
 // ---- 2. draft box ----
 const d1 = V.draftHtml({ text: "Dạ <b>", instruction: "báo giá sỉ" }, "", null);
-check("draft box: the order in its title, the text editable and escaped, Discard / Rewrite / Send",
-  /ib\.dr_cmd#báo giá sỉ/.test(d1) && /<textarea class="ib-draft-t" rows="3">Dạ &lt;b&gt;<\/textarea>/.test(d1) &&
+// The owner's order is NOT repeated over the draft (owner 2026-11-27: it took half the phone screen); the title says
+// only that Javis followed the order, and the order itself stays in a hover tooltip.
+check("draft box: a short title without the order, the text editable and escaped, Discard / Rewrite / Send",
+  /<span title="báo giá sỉ">ib\.dr_cmd<\/span>/.test(d1) && d1.split("báo giá sỉ").length === 2 && /<textarea class="ib-draft-t" rows="3">Dạ &lt;b&gt;<\/textarea>/.test(d1) &&
   /ib-dr-drop/.test(d1) && /ib-dr-redo/.test(d1) && /ib-dr-send/.test(d1));
 check("a draft of the drafts mode has no order in its title", /ib\.dr_ready/.test(V.draftHtml({ text: "x" })));
 const d2 = V.draftHtml({ text: "x" }, "send", (n) => "[" + n + "]");
@@ -123,6 +125,7 @@ check("CSS: dashed draft box, composer row, phone layout puts the box on its own
   /\.ib-cin \{ display: flex;/.test(CSS) && /\.ib-cin textarea \{ flex-basis: 100%; \}/.test(CSS));
 const keys = ["ib.ai_reply", "ib.ai_reply_t", "ib.ai_busy", "ib.cin_ph_ai", "ib.dr_cmd", "ib.dr_ready", "ib.dr_drop", "ib.dr_redo",
   "ib.dr_send", "ib.ask_ai_now", "ib.ai_silent", "ib.t_sent", "ib.t_sent_taught", "ib.t_dropped", "ht.act_fail", "ht.act_send_failed"];
+check("the draft title has no {lenh} slot in vi or en", !/\{lenh\}/.test(VI["ib.dr_cmd"]) && !/\{lenh\}/.test(EN["ib.dr_cmd"]));
 check("khoá có ở cả vi và en", keys.every((k) => VI[k] && EN[k]), keys.filter((k) => !VI[k] || !EN[k]).join(","));
 check("the old two buttons and their keys are gone", !/renderActions|onAction\(|setActionNote|ht\.act_answer|ht\.act_draft"|ht\.why_/.test(CV) &&
   ["ht.act_answer", "ht.act_draft", "ht.act_back", "ht.why_human", "ht.act_overwrite"].every((k) => !(k in VI) && !(k in EN)));

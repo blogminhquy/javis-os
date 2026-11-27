@@ -5561,7 +5561,7 @@
   "ib.make_bot": "Tạo A.I. cho kênh này",
   "ib.back_ai": "Trả lại cho A.I.",
   "ib.dr_ready": "Javis soạn sẵn câu trả lời. Sửa nếu cần rồi bấm Gửi.",
-  "ib.dr_cmd": "Javis soạn theo lệnh của bạn: “{lenh}”. Sửa nếu cần rồi bấm Gửi.",
+  "ib.dr_cmd": "Javis soạn theo lệnh của bạn. Sửa nếu cần rồi bấm Gửi.",
   "ib.dr_drop": "Bỏ",
   "ib.dr_redo": "Viết lại",
   "ib.dr_send": "Gửi",

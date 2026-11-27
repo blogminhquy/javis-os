@@ -267,8 +267,11 @@
   // ---- the draft box (a draft the bot wrote in "drafts" mode, or the answer to the owner's "A.I. reply") -------------
   function draftHtml(d, busy, icon) {
     var I = icon || noIcon, x = d || {};
-    var head = x.instruction ? tt("ib.dr_cmd", { lenh: x.instruction }) : tt("ib.dr_ready");
-    return '<div class="ib-draft"><div class="ib-draft-h">' + I("sparkles") + ' <span>' + esc(head) + '</span></div>' +
+    // The owner's order is not repeated over the draft (owner 2026-11-27: on a phone it pushed the draft off screen).
+    // The title only says Javis followed it; the order stays in a hover tooltip.
+    var head = x.instruction ? tt("ib.dr_cmd") : tt("ib.dr_ready");
+    var tip = x.instruction ? ' title="' + esc(x.instruction) + '"' : "";
+    return '<div class="ib-draft"><div class="ib-draft-h">' + I("sparkles") + ' <span' + tip + '>' + esc(head) + '</span></div>' +
       '<textarea class="ib-draft-t" rows="3">' + esc(x.text || "") + '</textarea>' +
       // "Bot học câu này" (owner 2026-11-19): ticked by default; shown when the draft carries the owner's order, and
       // revealed by conversations.js once the owner rewrites the draft. Unticked for something about one customer only.
