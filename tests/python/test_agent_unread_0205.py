@@ -70,6 +70,33 @@ act = st.agent_activity(["/b"], {"viet": 0, "none": 0})
 check("partner messages across its chats are counted, this brain only", act["viet"]["n"] == 2)
 check("newest message time", act["viet"]["last_at"] > 0 and act["none"] == {"n": 0, "last_at": 0.0})
 check("read mark hides older messages", st.agent_activity(["/b"], {"viet": act["viet"]["last_at"]})["viet"]["n"] == 0)
+check("count=False reads only the newest time", st.agent_activity(["/b"], {"viet": 0}, count=False)["viet"]
+      == {"n": 0, "last_at": act["viet"]["last_at"]})
+
+# 2026-11-27 (owner: a dot in an assistant's history while the assistant itself shows none): the row's count is built
+# from each chat's own read mark, the same one behind the history dots.
+cu = st.channel_unread(["/b"])
+check("unread per channel from each chat's read mark", cu == {"agent:viet": {"chats": 2, "n": 2}})
+st.mark_read(s1)
+cu = st.channel_unread(["/b"])
+check("reading ONE chat leaves the other chat's dot and count", cu == {"agent:viet": {"chats": 1, "n": 1}})
+check("the chat open on screen is skipped", st.channel_unread(["/b"], skip=[s2]) == {})
+w1 = st.create_session(brain="/b", engine="cli", channel="workflow:bao-cao")
+st.append_message(w1, "assistant", "xong bước 1")
+st.append_message(w1, "assistant", "xong bước 2")
+cu = st.channel_unread(["/b"])
+check("workflow chats are counted too", cu.get("workflow:bao-cao") == {"chats": 1, "n": 2})
+st.archive(w1)
+check("archived chats are left out", "workflow:bao-cao" not in st.channel_unread(["/b"]))
+g = st.create_session(brain="/b", engine="cli", channel="coding:repo")
+st.append_message(g, "assistant", "x")
+check("only the asked prefixes", "coding:repo" not in st.channel_unread(["/b"]))
+c5 = st.create_session(brain="/b", engine="cli", channel="agent:dai")
+for i in range(5):
+    st.append_message(c5, "assistant", f"tin {i}")
+check("replies capped", st.channel_unread(["/b"], cap=3)["agent:dai"] == {"chats": 1, "n": 3})
+st.mark_unread(s1)
+check("mark as unread brings the chat back into the count", st.channel_unread(["/b"])["agent:viet"]["chats"] == 2)
 
 import main as app_main  # noqa: E402
 from _paths import moi_duong_dan  # noqa: E402

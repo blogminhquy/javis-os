@@ -13,22 +13,25 @@ const en = JSON.parse(read("dashboard/i18n/en.json"));
 let fails = 0;
 function check(name, ok) { console.log((ok ? "ok   " : "FAIL ") + name); if (!ok) fails++; }
 
-check("unread read with the list, one request per brain", /loadUnread\(\)\.then\(function \(ok\) \{ if \(ok && active && S\.loai === "agent"\) veDanhSach\(\); \}\);/.test(ws)
-  && ws.includes('api("/agents/unread?brain=" + encodeURIComponent(b0))'));
+// 2026-11-27: one request for partners AND workflows, leaving out the chats running or open on screen (as the history).
+check("unread read with the list, one request per brain", /loadUnread\(\)\.then\(function \(ok\) \{ if \(ok && active\) \{ if \(S\.el\) drawTabUnread\(S\.el\); veDanhSach\(\); \} \}\);/.test(ws)
+  && ws.includes('api("/agents/unread?brain=" + encodeURIComponent(b0) + unreadSkip())') && ws.includes("S.unWf = d.workflows || {};"));
 const lu = ws.slice(ws.indexOf("async function loadUnread()"), ws.indexOf("function henUnread()"));
 check("newest message moves a partner up (re-sort)", /a\.last_chat_at = Number\(u\.last_at\)/.test(lu) && /S\.agents = sapXep\(S\.agents, "last_chat_at"\);/.test(lu));
 const td = ws.slice(ws.indexOf("function onTurnDone(sid) {"), ws.indexOf("function onTurnDone(sid) {") + 900);
-check("a reply just written re-sorts too", /S\.agents = sapXep\(S\.agents, "last_chat_at"\);/.test(td) && /else if \(sid && S\.loai === "agent"\) henUnread\(\);/.test(td));
-// 2026-11-05: a plain chat switch (reason "open") does not recount; every other event still does.
-check("events read the counts again", /\["javis:sessions-changed", "javis:agent-read"\]\.forEach\(function \(ev\) \{\s*window\.addEventListener\(ev, function \(e\) \{ if \(!laDoiPhien\(e\)\) henUnread\(\); \}\);/.test(ws)
-  && /data\.type === "agent_read"/.test(app));
+check("a reply just written re-sorts too, and every finished turn recounts", /S\.agents = sapXep\(S\.agents, "last_chat_at"\);/.test(td) && /if \(sid\) henUnread\(\);/.test(td));
+// 2026-11-27: a chat read, marked unread or answered anywhere recounts; a plain chat switch still does not (2026-11-05).
+check("events read the counts again", /\["javis:sessions-changed", "javis:agent-read", "javis:session-read", "javis:chat-activity"\]\.forEach\(function \(ev\) \{\s*window\.addEventListener\(ev, function \(e\) \{ if \(!laDoiPhien\(e\)\) henUnread\(\); \}\);/.test(ws)
+  && /data\.type === "agent_read"/.test(app) && /data\.type === "session_read"/.test(app));
 // 2026-11-05: only when something is unread (or the counts are not loaded yet): a zero count skips the POST.
-check("opening a partner's chat reads it", /if \(S\.loai === "agent" && coTinChuaDoc\(item\.slug\)\) daDoc\(item\.slug\);/.test(ws) && ws.includes('api("/agents/opened"'));
+// 2026-11-27 (owner: the history showed a dot while the partner showed none): opening a partner no longer marks the
+// whole partner read; opening a chat reads that chat (sessions-ui.js), and the count follows.
+check("opening a partner does not mark the partner read", !ws.includes('api("/agents/opened"') && !/function daDoc\(/.test(ws));
 check("muted mark in the corner cluster", ws.includes("gioNhanHtml(x.last_chat_at) + tinHtml(x) +"));
 // 2026-11-18: the count sits on the avatar's bottom left corner, not in the corner cluster.
-check("unread pill on the avatar", ws.includes("avatar(x, 40) + soTinHtml(x)") && !/gioNhanHtml\(x\.last_chat_at\) \+ soTinHtml/.test(ws)
+check("unread pill on the avatar", ws.includes('avatar(x, 40) + soTinHtml(x, "agent")') && !/gioNhanHtml\(x\.last_chat_at\) \+ soTinHtml/.test(ws)
   && /\.ws-av-unread \{ position: absolute; left: -4px; bottom: -4px;/.test(css) && /\.ws-item-ic \{ position: relative; \}/.test(css));
-check("the chat on screen shows no count", /function chuaDoc\(slug\) \{ var u = S\.un\[slug\]; return u && !dangXemCongSu\(slug\)/.test(ws));
+check("the workflow row gets the same pill", ws.includes('ic("workflow")) + soTinHtml(x, "workflow")'));
 check("menu item and the four lengths", /nutMenu\("bell-off", t\("ws\.mute"\), "tb"\)/.test(ws)
   && ["1h", "4h", "8am", "forever"].every((c) => ws.includes('["' + c + '", "ws.mute_')) && ws.includes('datTat(item, "off")'));
 const keys = ["ws.mute", "ws.unmute", "ws.muted", "ws.muted_until", "ws.mute_1h", "ws.mute_4h", "ws.mute_8am", "ws.mute_forever",
@@ -50,6 +53,21 @@ check("count pill", /notification-badge tm-unread ws-av-unread"[^>]*>3</.test(a)
 check("muted: grey pill, bell-off mark, 99+", b.includes("ws-av-unread is-muted") && bm.includes("tm-muted") && !bm.includes("tm-unread") && b.includes(">99+<"));
 check("nothing unread draws nothing", c === "");
 check("mute until turned back on reads as muted", W.tatDen({ muted_until: -1 }) === -1 && W.tatDen({ muted_until: 1 }) === 0);
+
+// 2026-11-27: the partner on screen still shows a count while ANOTHER chat of its history has a dot (the server leaves
+// the open chat out), and workflows carry their own count, never muted.
+S.loai = "agent"; S.chon.agent = "a"; S.agents = [{ slug: "a" }];
+check("the partner on screen keeps the count of its other chats", W.soTinHtml({ slug: "a" }, "agent").includes(">3<"));
+S.unWf = { w: { n: 2, chats: 1 } };
+const wf = W.soTinHtml({ slug: "w" }, "workflow");
+check("workflow pill", /tm-unread ws-av-unread"[^>]*>2</.test(wf) && !wf.includes("is-muted"));
+// Unread rows form their own block under the pinned ones, out of their group (never folded away or on a later page).
+const isUnread = (x) => x.slug === "u";
+const blocks = W.gomNhom([{ slug: "p", pinned: true }, { slug: "u", group: "B" }, { slug: "r", group: "B" }], "", [], null, isUnread);
+check("unread block under the pinned ones", blocks[0].ghim && blocks[1].unread && blocks[1].items[0].slug === "u"
+  && blocks.slice(2).every((b) => !b.items.some((x) => x.slug === "u")));
+check("tab and filter dots", ws.includes("function drawTabUnread(el)") && ws.includes("drawFilterUnread(el);")
+  && vi["ws.unread_hidden"] && en["ws.unread_hidden"] && /\.wspage\.ws-mini \.ws-tab-unread/.test(css));
 
 if (fails) { console.log(`\n${fails} FAILED`); process.exit(1); }
 console.log("\nPASS");

@@ -2125,6 +2125,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
   font-family: var(--font); font-size: 13px; font-weight: 700; white-space: nowrap; }
 .ws-seg button:hover { color: var(--accent); border-color: var(--accent); }
 .ws-seg button.on { color: var(--accent); border-color: #7d532d; background: rgba(255, 122, 60, .12); }
+/* 2026-11-27: red dot on the tab that holds an unread chat (workspace.js veTabUnread). In the folded strip the label is
+   gone, so the dot sits on the button's corner. */
+.ws-seg button { position: relative; }
+.wspage.ws-mini .ws-tab-unread { position: absolute; top: 3px; right: 3px; }
 .ws-search, .ws-group { width: 100%; box-sizing: border-box; padding: 7px 9px; border-radius: 9px;
   border: 1px solid var(--border); background: none; color: var(--text); font-family: var(--font);
   font-size: 13px; }

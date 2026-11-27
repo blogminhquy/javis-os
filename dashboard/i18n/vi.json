@@ -6175,6 +6175,7 @@
   "ws.mute_8am": "Cho đến 8:00 sáng",
   "ws.mute_forever": "Cho đến khi được mở lại",
   "ws.unread_n": "{n} tin chưa đọc",
+  "ws.unread_hidden": "Có hội thoại chưa đọc bị bộ lọc ẩn",
   "ws.mute_err": "Chưa đổi được thông báo của cộng sự này, thử lại nhé.",
   "app.steer_send": "Gửi thêm vào việc đang làm",
   "app.steer_sent": "Đã gửi thêm, Javis đang làm dở việc trước",

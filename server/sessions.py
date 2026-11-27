@@ -1661,6 +1661,36 @@ class SessionStore:
         ws = self._read(q, [p + "%" for p in KENH_CONG_SU] + list(bparams) + skip_params)
         return {"chat": chat, "workspace": int(ws[0][0] or 0) if ws else 0}
 
+    def channel_unread(self, brain: Any, prefixes: Tuple[str, ...] = ("agent:", "workflow:"), skip: Any = None,
+                       cap: int = 99) -> Dict[str, Dict[str, int]]:
+        """{channel: {"chats": unread chats, "n": unread replies (at most `cap`)}} for the chats whose channel starts
+        with one of `prefixes`, archived ones left out. 2026-11-27 (owner: the dot hides in an assistant's history and
+        nothing says which assistant): the count on an assistant's row is built from the very dots of its history rows
+        (UNREAD_SQL, each chat's own read mark), not from a separate per-assistant read mark that opening ANY of its
+        chats cleared. `skip`: chats still running or open on screen (_skip_sql), the same ones the history leaves dotless."""
+        prefixes = tuple(p for p in (prefixes or ()) if p)
+        if not prefixes:
+            return {}
+        skip_sql, skip_params = _skip_sql(skip)
+        cond, bparams = loc_brain(brain)
+        pre = " OR ".join("s.channel LIKE ?" for _ in prefixes)
+        rows = self._read(
+            "SELECT s.id, s.channel, COALESCE((SELECT r.read_at FROM session_read r WHERE r.session_id = s.id), 0) AS ra "
+            f"FROM sessions s WHERE s.archived = 0 AND ({pre}) AND {UNREAD_SQL} = 1"
+            + (f" AND {cond}" if cond else "") + skip_sql,
+            [p + "%" for p in prefixes] + list(bparams) + skip_params)
+        cap = max(1, int(cap))
+        out: Dict[str, Dict[str, int]] = {}
+        for r in rows:
+            got = out.setdefault(str(r["channel"]), {"chats": 0, "n": 0})
+            got["chats"] += 1
+            if got["n"] >= cap:
+                continue
+            c = self._read("SELECT COUNT(*) FROM (SELECT 1 FROM messages WHERE session_id = ? AND role = 'assistant' "
+                           "AND ts > ? LIMIT ?)", (r["id"], float(r["ra"] or 0), cap))
+            got["n"] = min(cap, got["n"] + max(1, int(c[0][0] or 0) if c else 1))
+        return out
+
     def count_unread(self, brain: Any = None, project: Optional[str] = None, skip: Any = None) -> int:
         """Unread chats of the Chat page's history (archived ones left out), optionally in one project or, with
         `project="none"`, in no project. Feeds the dot on "Chưa xếp nhóm" in the project picker (2026-11-20).
@@ -1720,20 +1750,25 @@ class SessionStore:
         sql += " GROUP BY channel"
         return {r["channel"]: float(r["m"] or 0) for r in self._read(sql, tuple(params))}
 
-    def agent_activity(self, brain: Any, since: Dict[str, float], cap: int = 99) -> Dict[str, Dict[str, float]]:
+    def agent_activity(self, brain: Any, since: Dict[str, float], cap: int = 99,
+                       count: bool = True) -> Dict[str, Dict[str, float]]:
         """0.205.0, private partner chats: {slug: {"n": partner messages after since[slug] (at most `cap`), "last_at": the
         newest message of any side}} over every `agent:<slug>` chat of this brain. `last_at` reads the messages, not
-        sessions.updated_at, which also moves on a rename or an archive."""
+        sessions.updated_at, which also moves on a rename or an archive. `count=False` reads only `last_at` (n is 0):
+        the unread count of a partner's row now comes from channel_unread (2026-11-27)."""
         cond, bparams = loc_brain(brain)
         extra = (" AND " + cond) if cond else ""
         out: Dict[str, Dict[str, float]] = {}
         for slug, ts in since.items():
             ch = "agent:" + str(slug)
-            rows = self._read(
-                "SELECT (SELECT COUNT(*) FROM (SELECT 1 FROM messages m JOIN sessions s ON s.id = m.session_id "
-                f"WHERE s.channel = ?{extra} AND m.role = 'assistant' AND m.ts > ? LIMIT ?)), "
-                f"(SELECT MAX(m.ts) FROM messages m JOIN sessions s ON s.id = m.session_id WHERE s.channel = ?{extra})",
-                tuple([ch] + list(bparams) + [float(ts or 0), max(1, int(cap)), ch] + list(bparams)))
+            last_sql = f"(SELECT MAX(m.ts) FROM messages m JOIN sessions s ON s.id = m.session_id WHERE s.channel = ?{extra})"
+            if not count:
+                rows = self._read(f"SELECT 0, {last_sql}", tuple([ch] + list(bparams)))
+            else:
+                rows = self._read(
+                    "SELECT (SELECT COUNT(*) FROM (SELECT 1 FROM messages m JOIN sessions s ON s.id = m.session_id "
+                    f"WHERE s.channel = ?{extra} AND m.role = 'assistant' AND m.ts > ? LIMIT ?)), {last_sql}",
+                    tuple([ch] + list(bparams) + [float(ts or 0), max(1, int(cap)), ch] + list(bparams)))
             n, last = (rows[0][0], rows[0][1]) if rows else (0, 0)
             out[str(slug)] = {"n": int(n or 0), "last_at": float(last or 0)}
         return out
