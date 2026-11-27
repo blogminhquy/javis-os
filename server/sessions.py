@@ -2401,6 +2401,23 @@ class SessionStore:
     def clear_last_context_input_tokens(self, session_id: str, provider: str = "codex") -> None:
         self._write(lambda c: subscription_context_store.clear(c, session_id, provider))
 
+    def reply_activity(self, session_id: str) -> Tuple[float, int]:
+        """(time of the newest assistant message, characters of user and assistant text) of a conversation.
+
+        What the cold-cache rule (compaction.cold_cache_rotates) needs to decide without loading the transcript: how
+        long the thread has been idle, and how large a fresh thread seeded from the transcript would be. One indexed
+        aggregate, so it stays cheap on a chat with thousands of messages."""
+        rows = self._read(
+            "SELECT MAX(CASE WHEN role = 'assistant' THEN ts END), "
+            "COALESCE(SUM(LENGTH(content)), 0) FROM messages "
+            "WHERE session_id = ? AND role IN ('user', 'assistant')",
+            (session_id,),
+        )
+        if not rows:
+            return 0.0, 0
+        last, chars = rows[0][0], rows[0][1]
+        return float(last or 0.0), int(chars or 0)
+
     def mark_thread_rotated(self, session_id: str) -> None:
         """Ghi mốc msg_count lúc vừa xoay mạch. Xem cột thread_rotated_msg ở migration."""
         self._write(lambda c: c.execute(

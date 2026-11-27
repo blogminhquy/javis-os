@@ -180,6 +180,76 @@ def next_turn_rotates(last_input_tokens, msg_count, rotated_at) -> bool:
     return nen_mach_thue_bao(last_input_tokens, msg_count=count, rotated_at=rotated_at)
 
 
+# ---------------------------------------------------------------------------------------------------------------
+# Cold-cache rule (2026-11-27, spec 2026-11-javis-nhe-token-spec.md section 5.5).
+#
+# The prompt cache of a subscription engine lives about an hour after its last use. Come back to a long chat after a
+# longer break and the next turn re-writes the WHOLE native thread into the cache (system prompt, tools, every earlier
+# turn with every tool result), at write price, to say one more sentence. The spec measured it as the most wasteful
+# single cost Javis had: a 200k thread rewritten for one question.
+#
+# The rule: once the cache is surely cold, and the native thread is much bigger than a fresh thread seeded from the
+# saved transcript would be, drop the native thread and seed a new one (`bootstrap_prompt`), exactly like the size
+# rule above. The native thread is mostly tool results and agentic loops that the transcript does not carry, so the
+# fresh thread is usually a fraction of it, while every question and answer of the chat is still there.
+#
+# What it gives up, said plainly: the tool results the engine was still holding. The model re-reads a file if it needs
+# it. That is why the rule only fires when the saving is large (the fresh thread at most half the old one) and only
+# after the cache is gone anyway: rotating a WARM thread would throw away a cheap read, rotating a cold one only
+# throws away an expensive re-write. A chat whose cache is kept warm (cache_keepwarm.py) is not cold, so it keeps its
+# thread.
+COLD_CACHE_TTL_S = 60 * 60
+# Characters of transcript per token, on the LOW side for Vietnamese text: guessing too many tokens for the fresh
+# thread only makes the rule fire less often.
+COLD_CHARS_PER_TOKEN = 2.5
+# What every thread carries whatever its length: Javis's system prompt, tool schemas and the channel block. Measured
+# at 57,000 to 66,000 tokens on the Claude Code lane (spec section 1); the upper end keeps the estimate of the fresh
+# thread on the safe side.
+COLD_FIXED_TOKENS = 66_000
+# The fresh thread must cost at most this share of the old one, or the rule stays out of the way.
+COLD_MAX_FRESH_SHARE = 0.5
+
+
+def cold_cache_rotates(context_tokens, idle_seconds, transcript_chars, msg_count=None, rotated_at=None,
+                       ttl_seconds: int = COLD_CACHE_TTL_S) -> bool:
+    """Whether a subscription thread should be re-seeded because its prompt cache has gone cold.
+
+    `context_tokens` is the input of the last request of the previous turn (the thread's real size),
+    `idle_seconds` the time since the cache was last used (last reply, or last warm keep-warm ping),
+    `transcript_chars` the length of the saved user and assistant text that would seed the fresh thread.
+    All three must be known: any missing or broken value answers no, because cutting a live thread by mistake is worse
+    than paying for one rewrite. The anti-churn mark of the size rule applies too: a thread just rotated needs real
+    progress before it may rotate again.
+    """
+    try:
+        ctx = int(context_tokens or 0)
+        idle = float(idle_seconds or 0)
+        chars = int(transcript_chars or 0)
+        ttl = float(ttl_seconds or 0)
+    except (TypeError, ValueError):
+        return False
+    if ctx <= 0 or chars <= 0 or ttl <= 0 or idle <= ttl:
+        return False
+    fresh = COLD_FIXED_TOKENS + min(chars, CODEX_BOOTSTRAP_MAX_CHARS) / COLD_CHARS_PER_TOKEN
+    if fresh > ctx * COLD_MAX_FRESH_SHARE:
+        return False
+    try:
+        mark = int(rotated_at or 0)
+        now = int(msg_count or 0)
+    except (TypeError, ValueError):
+        return True
+    return mark <= 0 or now - mark >= SUBSCRIPTION_ROTATE_MIN_MSGS
+
+
+def cold_cache_saving(context_tokens, transcript_chars) -> int:
+    """Tokens the fresh thread is expected to save on the turn that rotates, for the line shown in the chat."""
+    try:
+        fresh = COLD_FIXED_TOKENS + min(int(transcript_chars or 0), CODEX_BOOTSTRAP_MAX_CHARS) / COLD_CHARS_PER_TOKEN
+        return max(0, int(int(context_tokens or 0) - fresh))
+    except (TypeError, ValueError):
+        return 0
+
+
 SUMMARY_HEADER = ("[Tóm tắt phần đầu hội thoại - đã nén để tiết kiệm context. "
                   "Coi đây là ký ức về những gì hai bên đã trao đổi trước đó:]\n")
 

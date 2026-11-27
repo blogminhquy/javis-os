@@ -897,6 +897,27 @@
       + rows + "</tbody></table>";
   }
 
+  // Claude input tokens spent for nothing, by cause (server/usage_waste.py): cache rebuilt after a long break, cache
+  // rebuilt after a model switch, and the share sitting in long contexts. Hidden when there are no Claude requests.
+  function wasteHtml(w) {
+    if (!w || !w.requests) return "";
+    var rows = [[window.t("usage.waste.cold"), w.cold], [window.t("usage.waste.model_switch"), w.model_switch],
+      [window.t("usage.waste.long"), w.long]].map(function (r) {
+      var b = r[1] || {};
+      return "<tr><td>" + esc(r[0]) + "</td>"
+        + '<td class="num">' + (b.count || 0).toLocaleString(LOC()) + "</td>"
+        + '<td class="num">' + fTok(b.tokens || 0) + "</td>"
+        + '<td class="num">' + (+(b.pct || 0)).toFixed(1) + "%</td></tr>";
+    }).join("");
+    return '<div class="tk-sec">' + window.t("usage.sec.waste") + infoBtn() + "</div>"
+      + infoBody(esc(window.t("usage.waste.hint")))
+      + '<table class="tk-tbl"><thead><tr><th>' + window.t("usage.th.nguyen_nhan") + "</th>"
+      + '<th style="text-align:right">' + window.t("usage.th.lan") + "</th>"
+      + '<th style="text-align:right">Token</th>'
+      + '<th style="text-align:right">' + window.t("usage.th.ty_le_vao") + "</th></tr></thead><tbody>"
+      + rows + "</tbody></table>";
+  }
+
   function paint(s, insights) {
     var el = state.el; if (!el) return;
     var k = s.kpi || {};
@@ -1013,7 +1034,7 @@
       quy_doi: "<b>" + window.t("usage.note_quy_doi") + "</b>",
     }));
 
-    el.innerHTML = '<div class="tk-wrap">' + mucHtml(state.muc) + bar1 + heroHtml() + act + gioHtml() + cards + note + chart + grid + tables + loopHtml() + engineHtml() + insHtml + "</div>";
+    el.innerHTML = '<div class="tk-wrap">' + mucHtml(state.muc) + bar1 + heroHtml() + act + gioHtml() + cards + note + chart + wasteHtml(s.waste) + grid + tables + loopHtml() + engineHtml() + insHtml + "</div>";
     // Thông báo đã hiện xong thì thôi. Không xoá ở đây thì câu "Đã chuyển sang mức Tối ưu"
     // bám vào trang qua mọi lần đổi chip kỳ, mọi lần Làm mới, cho tới khi người dùng F5 -
     // và một thông báo nói về việc xảy ra mười phút trước thì chỉ gây hiểu nhầm.

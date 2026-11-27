@@ -39,6 +39,13 @@ Phiên và bằng chứng kiểm định của chúng được dựng trên pres
 tự leo hay tự hạ bậc theo kết quả của chính nó và theo ý định chủ nói trong chat. Thiết kế ở
 `2026-11-so-diem-viec-nen-spec.md`.
 
+**Đã làm thêm ngày 27/11/2026** (sau khi chủ repo cho xem một bộ "tiết kiệm token" bên ngoài và chọn hai ý):
+
+| Việc | Ở đâu | Thay cho mục |
+|---|---|---|
+| **Luật cache nguội** cho Claude Code và Codex: nghỉ quá 1 giờ, mạch đã đo được, và mạch mới mồi từ bản ghi (cộng 66.000 token cố định) không quá nửa mạch cũ thì mở mạch mới. Chat còn ấm nhờ Giữ ấm bộ nhớ đệm thì giữ mạch. Tắt bằng env `JAVIS_COLD_ROTATE=0` | `compaction.cold_cache_rotates`, `main._cold_cache_decision`, `sessions.reply_activity`, `cache_keepwarm.last_warm` | 5.5 (luật cache nguội). Khác spec: không dùng ngưỡng 40.000 token và "6 tin gần nhất", vì mạch Javis mang sẵn khoảng 60.000 token cố định, còn bản mồi giữ cả bản ghi như lúc xoay theo kích thước |
+| **Bảng "Vì sao tốn token (Claude)"** trên trang Mức dùng: số lần và token ghi lại vì cache nguội, vì đổi model giữa chat, và phần nằm ở lượt có ngữ cảnh trên 200k; cảnh báo khi cache nguội từ 5% | `server/usage_waste.py`, `usage_index._waste`, `dashboard/usage.js` (`wasteHtml`) | một phần 5.7 |
+
 Còn mở, theo thứ tự đáng làm:
 
 1. **Việc nền chỉ ăn hạn mức thừa:** dồn việc Javis tự làm về cuối cửa sổ 5 giờ, khi còn dư.
