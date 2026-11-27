@@ -95,6 +95,7 @@ import sdk_update      # same daily tick: the claude-agent-sdk package moves to 
 import agy_update      # cùng việc đó cho Antigravity CLI: `agy update` hằng ngày (0.137.0)
 import claude_models   # model Claude LIVE cho provider anthropic-cli (hỏi bằng API key, nếu có)
 import winproc         # chạy lệnh con câm lặng trên Windows (không nháy console đen)
+import windows_watchdog  # the Windows watchdog follows the autostart switch (2026-11-27)
 import md_repair       # chữa file .md bị vòng lưu WYSIWYG của bản <= 0.33.3 làm hỏng
 import terminal        # tab Code: pseudo-terminal thật trong dashboard (pty trên POSIX, ống trên Windows)
 import coding_store    # trang Coding: phiên gắn repo nào, nhánh nào, worktree nào, mức quyền nào
@@ -19435,9 +19436,32 @@ def _autostart_set(enabled: bool) -> dict:
                                           _AUTOSTART_APPROVED_ON)
             except FileNotFoundError:
                 pass
+        # The watchdog (javis-watchdog.ps1) follows the switch: on keeps Javis up, off must not start it again.
+        import threading as _threading
+        _threading.Thread(target=windows_watchdog.sync, args=(enabled,), daemon=True, name="javis-watchdog").start()
         return {"ok": True, "enabled": enabled, **_autostart_status()}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+@app.on_event("startup")
+async def _windows_watchdog_catch_up():
+    """A Windows machine installed before the watchdog existed (2026-11-27) gets it once it updates, when autostart is
+    on and the owner never removed it by hand. A minute after start, so it never slows the start itself."""
+    if os.name != "nt":
+        return
+
+    async def later():
+        await asyncio.sleep(60)
+        try:
+            if _autostart_status().get("enabled"):
+                done = await asyncio.to_thread(windows_watchdog.sync, True)
+                if done == "installed":
+                    print("[watchdog] registered: Javis restarts itself if it dies or hangs", file=sys.stderr)
+        except Exception as e:  # noqa: BLE001 - best effort, see windows_watchdog.py
+            print(f"[watchdog] catch-up: {type(e).__name__}: {e}", file=sys.stderr)
+
+    asyncio.get_running_loop().create_task(later())
 
 
 @app.get("/autostart")
