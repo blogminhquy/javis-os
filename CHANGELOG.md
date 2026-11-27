@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.649.0] - 2026-11-27
+### Cải thiện
+- **Javis thấy đủ mọi skill.** Trước đây danh sách skill trong prompt chỉ chứa khoảng 20 skill (brain 44 skill thì 23 skill bị ẩn). Giờ prompt nêu tên mọi skill, gọn và cố định nên không làm mất cache.
+- **Chọn skill theo trọn mô tả, không còn cắt 150 ký tự.** Mỗi lượt Javis chấm mọi skill theo câu bạn vừa gõ, rồi đưa vài skill khớp nhất kèm mô tả đầy đủ cho model. Đo trên hai bộ thử: chọn đúng 95-96%, cách cũ 23-64%.
+- **Mô tả skill được dài tới 1.024 ký tự** (chuẩn Agent Skills), nên skill nhập từ Anthropic hay kho khác dùng nguyên văn. Cảnh báo "Mô tả dài quá" trên trang Kỹ năng chỉ còn hiện khi quá 1.024.
+- **Javis tự học cách bạn gọi skill.** Câu nào gợi ý bỏ sót mà sau đó skill vẫn được dùng thì lần sau nói tương tự là tìm ra ngay. Model cũng tìm được skill theo việc cần làm qua `javis_use_skill(find=...)`, tìm tool và `javis_code`. Phần thử mô tả skill (Duyệt đề xuất cải tiến skill) cũng chấm theo cách chọn mới.
+
 ## [0.648.0] - 2026-11-27
 ### Thêm mới
 - **Mỗi trợ lý nhớ model anh chọn khi chat.** Đổi model ở khung chat với một trợ lý là trợ lý đó ghim luôn model ấy cho chat: mở chat mới hay quay lại chat cũ với trợ lý đều chạy model vừa chọn. Việc nền của trợ lý (nhắc hẹn, loop, Kanban, team, quy trình, bot) vẫn chạy model trong cài đặt. Bảng chọn model có dòng "Theo model trong cài đặt của trợ lý" để gỡ ghim.

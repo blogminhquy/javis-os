@@ -8,6 +8,13 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.649.0] - 2026-11-27
+### Improved
+- **Javis sees every skill.** The skill list in the prompt used to hold about 20 skills (a 44-skill brain hid 23). The prompt now names every skill, short and fixed, so the prompt cache keeps holding.
+- **Skills are picked by their whole description, no longer cut at 150 characters.** Each turn Javis ranks every skill against what you typed and gives the model the few that fit, with their whole description. Measured on two test sets: the right skill 95-96% of the time, against 23-64% before.
+- **A skill description can be up to 1,024 characters** (the Agent Skills standard), so skills from Anthropic or other stores work as written. The "Description too long" warning on the Skills page only shows past 1,024.
+- **Javis learns how you ask for a skill.** A request the suggestions missed, followed by that skill being used, finds it next time. The model can also search skills by the job through `javis_use_skill(find=...)`, the tool search and `javis_code`. Skill description trials (review of skill improvement proposals) now score with the new routing too.
+
 ## [0.648.0] - 2026-11-27
 ### Added
 - **Each assistant remembers the model you pick in its chat.** Changing the model in a chat with an assistant pins it for chatting with that assistant: new chats and old ones with it run that model. Its background work (reminders, loops, Kanban, team turns, workflows, bots) keeps the model in its settings. The model list has a "Follow the model set on the assistant" row to clear the pin.
