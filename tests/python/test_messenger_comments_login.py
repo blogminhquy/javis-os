@@ -426,6 +426,34 @@ check("the Page is saved with its comment mode", (acc.get("meta") or {}).get("co
 check("no token in the finish response", "EAApagetok" not in json.dumps(d) and USER_LONG not in json.dumps(d))
 check("the login is kept while a Page failed, so it can be retried", messenger_oauth.take("st-ready") != {})
 
+# Signing in again to add a Page reuses the App secret saved with a connected Page (owner, 27/11/2026).
+seen_secret = []
+
+
+async def fake_start_secret(*a, **kw):
+    seen_secret.append(a[1])
+    return {"ok": True, "state": "st-y", "url": "https://www.facebook.com/y"}
+
+main.messenger_oauth.start = fake_start_secret
+try:
+    client.post("/messenger/oauth/start", json={"app_id": APP, "app_secret": ""})
+    client.post("/messenger/oauth/start", json={"app_id": APP, "app_secret": "e" * 32})
+    client.post("/messenger/oauth/start", json={"app_id": "111222333", "app_secret": ""})
+finally:
+    main.messenger_oauth.start = orig_start
+check("an empty App secret for a saved app uses the stored one, a typed one wins, an unknown app gets none",
+      seen_secret == [APP_SECRET, "e" * 32, ""], seen_secret)
+d = client.get("/messenger/setup").json()
+check("setup lists the saved app with its Pages and never the secret",
+      [a["app_id"] for a in d.get("apps", [])] == [APP] and "Shop Áo" in d["apps"][0]["pages"]
+      and APP_SECRET not in json.dumps(d), d.get("apps"))
+r = client.get("/messenger/oauth/result", params={"state": "st-ready"}).json()
+conn = {p["id"]: p.get("connected") for p in r.get("pages", [])}
+check("the login result marks the Page this Javis already has",
+      conn == {PAGE: True, "222333444555": False}, conn)
+check("marking does not touch the pending login",
+      all("connected" not in p for p in messenger_oauth._pending["st-ready"]["pages"]))
+
 r = client.post("/messenger/comments", json={"account_id": acc.get("id"), "mode": "off"})
 check("comment mode can be changed afterwards", r.status_code == 200 and r.json()["account"]["comments"] == "off"
       and messenger_bot.comment_mode(acc.get("id")) == "off", r.text)
