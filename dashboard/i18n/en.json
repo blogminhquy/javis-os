@@ -5561,7 +5561,7 @@
   "ib.make_bot": "Create an AI for this channel",
   "ib.back_ai": "Hand back to the AI",
   "ib.dr_ready": "Javis drafted a reply. Edit it if needed, then press Send.",
-  "ib.dr_cmd": "Javis drafted from your instruction: “{lenh}”. Edit it if needed, then press Send.",
+  "ib.dr_cmd": "Javis drafted from your instruction. Edit it if needed, then press Send.",
   "ib.dr_drop": "Discard",
   "ib.dr_redo": "Rewrite",
   "ib.dr_send": "Send",
