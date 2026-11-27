@@ -31193,6 +31193,35 @@ def _ms_account_view(a: dict) -> dict:
             "bots": [{"id": b["id"], "name": b.get("name"), "enabled": bool(b.get("enabled"))} for b in bots]}
 
 
+def _ms_saved_apps(brain: str = "") -> list:
+    """The Meta apps already used by a connected Page that still hold their App secret: [{app_id, pages}].
+    The card offers them so adding another Page is one more Log in with Facebook, with no secret to paste again
+    (owner, 27/11/2026). Never carries the secret."""
+    apps: dict = {}
+    for a in channel_accounts.list_accounts(channel="messenger", brain=str(brain or "").strip()):
+        app_id = str((a.get("meta") or {}).get("app_id") or "").strip()
+        if not app_id or not _ms_saved_secret(app_id, [a]):
+            continue
+        apps.setdefault(app_id, {"app_id": app_id, "pages": []})["pages"].append(
+            (a.get("meta") or {}).get("bot_name") or a.get("label") or a.get("external_id") or "")
+    return list(apps.values())
+
+
+def _ms_saved_secret(app_id: str, accounts=None) -> str:
+    """The App secret stored with a connected Page of this app, or ''. Read server-side only, from the encrypted
+    channel-account token, so the owner signs in again without digging the secret out of the Meta app."""
+    app_id = str(app_id or "").strip()
+    if not app_id:
+        return ""
+    for a in (accounts if accounts is not None else channel_accounts.list_accounts(channel="messenger")):
+        if str((a.get("meta") or {}).get("app_id") or "").strip() != app_id:
+            continue
+        sec = messenger_bot.split_credentials(channel_accounts.get_token(a.get("id", ""))).get("app_secret", "")
+        if sec:
+            return sec
+    return ""
+
+
 def _ms_account_creds(account_id: str):
     a = channel_accounts.get_account(account_id)
     if not a or a.get("channel") != "messenger":
@@ -31240,6 +31269,7 @@ async def messenger_setup_info(request: Request, brain: str = ""):
     base = url[: -len("/messenger/webhook")]
     return {"ok": True, "webhook_url": url, "https": url.startswith("https://"),
             "verify_token": _ms_verify_token(), "accounts": [_ms_account_view(a) for a in accs],
+            "apps": _ms_saved_apps(brain),
             "oauth_redirect": base + messenger_oauth.CALLBACK_PATH, "privacy_url": base + messenger_oauth.PRIVACY_PATH}
 
 
@@ -31252,12 +31282,13 @@ async def messenger_connect(request: Request):
     except Exception:
         body = {}
     page_id = str(body.get("page_id") or "").strip()
-    res = await messenger_setup.connect(page_id, body.get("app_id"), body.get("app_secret"),
+    secret = str(body.get("app_secret") or "").strip() or _ms_saved_secret(body.get("app_id"))
+    res = await messenger_setup.connect(page_id, body.get("app_id"), secret,
                                         body.get("token"), _ms_webhook_url(request), _ms_verify_token())
     if not res.get("ok"):
         return JSONResponse({"ok": False, "error": res.get("error", ""), "step": res.get("step", "")},
                             status_code=400)
-    aid, loi, updated = _ms_save_account(request, page_id, body.get("app_id"), body.get("app_secret"), res,
+    aid, loi, updated = _ms_save_account(request, page_id, body.get("app_id"), secret, res,
                                          body.get("label"), body.get("brain"))
     if loi:
         return JSONResponse({"ok": False, "error": loi}, status_code=400)
@@ -31291,7 +31322,10 @@ async def messenger_oauth_start(request: Request):
         body = await request.json()
     except Exception:
         body = {}
-    res = await messenger_oauth.start(body.get("app_id"), body.get("app_secret"),
+    # Empty App secret with an App ID a connected Page already uses: reuse the stored secret, so "add another Page"
+    # is just signing in again (owner, 27/11/2026). A typed secret always wins, so a rotated secret still works.
+    secret = str(body.get("app_secret") or "").strip() or _ms_saved_secret(body.get("app_id"))
+    res = await messenger_oauth.start(body.get("app_id"), secret,
                                       _ms_base(request) + messenger_oauth.CALLBACK_PATH,
                                       str(body.get("brain") or ""), str(body.get("label") or ""),
                                       instagram=bool(body.get("instagram")), insights=bool(body.get("insights")))
@@ -31324,7 +31358,13 @@ async def messenger_oauth_callback(state: str = Query(""), code: str = Query("")
 
 @app.get("/messenger/oauth/result")
 async def messenger_oauth_result(state: str = ""):
-    return messenger_oauth.result(state)
+    """The login's outcome, each Page marked `connected` when this Javis already has it, so the picker can tick
+    only the new ones."""
+    res = messenger_oauth.result(state)
+    if res.get("pages"):
+        res["pages"] = [dict(pg, connected=bool(channel_accounts.owner_of(str(pg.get("id") or ""), "messenger")))
+                        for pg in res["pages"]]
+    return res
 
 
 @app.post("/messenger/oauth/finish")

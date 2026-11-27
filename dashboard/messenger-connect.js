@@ -180,6 +180,23 @@
       + '<button class="s-btn-ghost" type="button" data-copy="' + esc(value || "") + '">' + esc(tw("msc.copy")) + "</button></div></div>";
   }
 
+  // Apps a connected Page already uses, whose App secret the server kept (27/11/2026, owner: "tái sử dụng ... app ID
+  // của kết nối hiện tại ... để chọn thêm các fanpage khác"). One chip per app fills the App ID; the secret stays on the
+  // server, so adding a Page is just signing in again.
+  function savedAppsHtml(apps) {
+    if (!apps || !apps.length) return "";
+    return '<div class="msc-saved"><div class="lv-meta">' + esc(tw("msc.saved_apps")) + infoBtn() + "</div>"
+      + infoBody(esc(tw("msc.saved_apps_how")))
+      + '<div class="conn-accounts">' + apps.map(function (a) {
+        var pages = (a.pages || []).filter(Boolean).join(", ");
+        return '<button class="conn-chip" type="button" data-f-app="' + esc(a.app_id) + '" title="' + esc(pages) + '">'
+          + "App " + esc(a.app_id) + (pages ? " · " + esc(pages) : "") + "</button>";
+      }).join("") + "</div></div>";
+  }
+  function savedApp(apps, appId) {
+    return !!appId && (apps || []).some(function (a) { return a.app_id === appId; });
+  }
+
   function formHtml(setup, preset) {
     var https = setup && setup.https;
     return '<div class="msc-form">'
@@ -193,6 +210,7 @@
       // itself; these are for setting it by hand in the Meta app when that fails, without leaving this card.
       + copyRow("msc.webhook", "msc.webhook_how", setup && setup.webhook_url)
       + copyRow("msc.verify", "msc.verify_how", setup && setup.verify_token)
+      + savedAppsHtml(setup && setup.apps)
       + '<div class="msc-grid">'
       + field("app_id", "text", "987654321098765")
       + field("app_secret", "password", "")
@@ -234,10 +252,16 @@
   function pickHtml(pages) {
     if (!pages || !pages.length) return "";
     return '<div class="msc-pick-list"><div class="msc-form-head"><b>' + esc(tw("msc.pick_head", { n: pages.length })) + "</b></div>"
+      // A Page this Javis already has comes back unticked and tagged, so signing in again to add one Page does not
+      // redo the others; ticking it anyway refreshes its token. When every Page is already connected, Facebook
+      // reused the earlier choice: say how to pick more.
+      + (pages.every(function (pg) { return pg.connected; }) ? '<div class="lv-note">' + esc(tw("msc.pick_all_old")) + "</div>" : "")
       + pages.map(function (pg) {
-        return '<label class="msc-pick-row"><input type="checkbox" data-page="' + esc(pg.id) + '" checked>'
+        return '<label class="msc-pick-row"><input type="checkbox" data-page="' + esc(pg.id) + '"' + (pg.connected ? "" : " checked") + ">"
           + (pg.picture ? '<img class="msc-pick-pic" alt="" src="' + esc(pg.picture) + '">' : '<span class="msc-pick-pic">' + logo("20px") + "</span>")
-          + '<span class="msc-pick-name"><b>' + esc(pg.name || pg.id) + '</b><span class="lv-meta">Page ID ' + esc(pg.id)
+          + '<span class="msc-pick-name"><b>' + esc(pg.name || pg.id) + "</b>"
+          + (pg.connected ? ' <span class="cb-st-chip">' + esc(tw("msc.pick_connected")) + "</span>" : "")
+          + '<span class="lv-meta">Page ID ' + esc(pg.id)
           + (pg.ig_username ? " · Instagram @" + esc(pg.ig_username) : "") + "</span></span></label>";
       }).join("")
       + '<div class="lv-form-act"><button class="s-btn" type="button" data-f="finish">' + esc(tw("msc.finish")) + "</button>"
@@ -479,7 +503,7 @@
     var btn = form.querySelector('[data-f="login"]');
     var appId = (form.querySelector('[data-f="app_id"]').value || "").trim();
     var secret = (form.querySelector('[data-f="app_secret"]').value || "").trim();
-    if (!appId || !secret) { msg.textContent = tw("msc.need_app"); return; }
+    if (!appId || (!secret && !savedApp(setup && setup.apps, appId))) { msg.textContent = tw("msc.need_app"); return; }
     var win = null;
     try { win = window.open("about:blank", "_blank"); } catch (e) { win = null; }
     btn.disabled = true;
@@ -546,7 +570,19 @@
     var form = m.querySelector(".msc-form");
     wireCopy(form);
     if (preset && preset.page_id) form.querySelector('[data-f="page_id"]').value = preset.page_id;
-    if (preset && preset.app_id) form.querySelector('[data-f="app_id"]').value = preset.app_id;
+    var apps = (setup && setup.apps) || [];
+    var idBox = form.querySelector('[data-f="app_id"]');
+    var secBox = form.querySelector('[data-f="app_secret"]');
+    // An empty App secret means "the one already saved" when the App ID is a saved app; the placeholder says so.
+    function syncSecret() {
+      secBox.placeholder = savedApp(apps, (idBox.value || "").trim()) ? tw("msc.secret_saved") : "";
+    }
+    idBox.value = (preset && preset.app_id) || (apps[0] && apps[0].app_id) || "";
+    idBox.oninput = syncSecret;
+    form.querySelectorAll("[data-f-app]").forEach(function (b) {
+      b.onclick = function () { idBox.value = b.getAttribute("data-f-app"); syncSecret(); };
+    });
+    syncSecret();
     form.querySelector('[data-f="cancel"]').onclick = function () { M.close(); };
     form.querySelector('[data-f="login"]').onclick = function () { login(form); };
     form.querySelector('[data-f="manual"]').onclick = function () {

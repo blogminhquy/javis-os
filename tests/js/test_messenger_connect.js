@@ -97,6 +97,19 @@ check("Page picker: one ticked row per Page, names escaped, a connect button", (
   assert.ok(h.includes("Shop &lt;b&gt;") && !h.includes("Shop <b>") && h.includes('data-f="finish"') && h.includes('src="https://x/p.jpg"'));
   assert.strictEqual(M.pickHtml([]), "");
 });
+check("Page picker: a Page already connected comes back unticked and tagged", () => {
+  const h = M.pickHtml([{ id: "1", name: "Cũ", connected: true }, { id: "2", name: "Mới" }]);
+  assert.ok(/data-page="1">/.test(h) && /data-page="2" checked>/.test(h), h);
+  assert.ok(h.includes("msc.pick_connected") && !h.includes("msc.pick_all_old"));
+  assert.ok(M.pickHtml([{ id: "1", name: "Cũ", connected: true }]).includes("msc.pick_all_old"),
+    "every Page already connected: say how to pick more");
+});
+check("form: one chip per saved app, App secret never in the page", () => {
+  const h = M.formHtml({ https: true, apps: [{ app_id: "111", pages: ["Shop A", "Shop <B>"] }, { app_id: "222", pages: [] }] });
+  assert.strictEqual((h.match(/data-f-app="/g) || []).length, 2);
+  assert.ok(h.includes('data-f-app="111"') && h.includes("Shop &lt;B&gt;") && !h.includes("Shop <B>"));
+  assert.ok(!M.formHtml({ https: true }).includes("data-f-app"), "no saved app, no chips");
+});
 check("results: checklist for a connected Page, the error for a failed one", () => {
   const h = M.resultsHtml([{ ok: true, page_name: "Shop", check: chk }, { ok: false, page_id: "2", error: "lỗi <210>" }]);
   assert.ok(h.includes("msc-checks") && h.includes("lỗi &lt;210&gt;") && !h.includes("<210>"));
