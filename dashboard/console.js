@@ -6147,10 +6147,9 @@
     return i && typeof i.catLabel === "function" ? i.catLabel(x) : (x || "");
   }
 
-  // ── Nhóm connector (khối B): mọi dịch vụ Google gom về MỘT card, bấm vào chọn dịch vụ ──
+  // ── Nhóm connector (khối B): một card mở bảng chọn dịch vụ. Google không còn gom ở đây (chủ, 27/11/2026): một
+  //    thẻ Google Workspace chính chủ bấm là nối, các dịch vụ Google khác đứng riêng như mọi thẻ khác. ──
   const GROUP_META = {
-    google: { name: "Google", icon: '<span class="gico">G</span>', category: "Văn phòng",
-              desc_key: "cs.cn_g_google" },
     // Built in since 2026-11-05 (owner: a default connection next to GitHub): two ways in, token or web sign-in.
     // No category here: the card takes its members' category from the catalog, so the filter chip matches it.
     cloudflare: { name: "Cloudflare", icon: iconInner({ icon: "/static/logos/cloudflare.jpg" }), desc_key: "cs.cn_g_cloudflare" },

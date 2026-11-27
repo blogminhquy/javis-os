@@ -2894,7 +2894,6 @@
   "cs.cn_still_fail": "Vẫn chưa kết nối được.",
   "cs.cn_add_account": "Thêm tài khoản",
   "cs.cn_guide_github": "Hướng dẫn trên GitHub",
-  "cs.cn_g_google": "Lịch, Gmail, Tasks, Drive/Docs, Sheets, Keep - chọn dịch vụ cần đấu, các dịch vụ dùng chung được một key đăng nhập.",
   "cs.cn_g_cloudflare": "DNS, Workers, Pages, KV, R2, D1 qua MCP chính chủ. Chọn dán API token hoặc đăng nhập Cloudflare trên web.",
   "cs.cn_services": "{so} dịch vụ",
   "cs.cn_linked_n": "đã nối {so}",

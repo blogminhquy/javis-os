@@ -2894,7 +2894,6 @@
   "cs.cn_still_fail": "Still cannot connect.",
   "cs.cn_add_account": "Add an account",
   "cs.cn_guide_github": "Guide on GitHub",
-  "cs.cn_g_google": "Calendar, Gmail, Tasks, Drive/Docs, Sheets, Keep. Pick the service you need; they all share one sign-in key.",
   "cs.cn_g_cloudflare": "DNS, Workers, Pages, KV, R2, D1 through the official MCP. Paste an API token or sign in to Cloudflare on the web.",
   "cs.cn_services": "{so} services",
   "cs.cn_linked_n": "{so} linked",

@@ -43,6 +43,10 @@ card = by_id.get("google-workspace-official") or {}
 
 # ---- 1. The card ----
 check("card exists", bool(card))
+check("one card of its own, connected in one click (no Google picker, owner 2026-11-27)",
+      card.get("name") == "Google Workspace" and not card.get("group") and card.get("key_family") == "google")
+check("no Google service is grouped behind a picker any more",
+      not [c["id"] for c in catalog["connectors"] if c.get("group") == "google"])
 check("internal transport the client knows",
       card.get("transport") == "internal" and mcp_client._INTERNAL.get(card.get("internal")) == "google_workspace_mcp")
 auth = card.get("auth") or {}

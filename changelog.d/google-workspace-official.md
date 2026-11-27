@@ -8,6 +8,7 @@ title: Google Workspace through Google's own MCP servers, one sign-in for nine s
 - **Google hỏi trước khi làm việc nhạy cảm.** Gửi thư ra ngoài, chia sẻ, bỏ vào thùng rác: Google dừng lại hỏi, Javis đưa câu hỏi kèm bản xem trước cho bạn trong khung chat, bạn đồng ý thì việc mới chạy. Javis không bao giờ tự trả lời thay bạn.
 
 ### Cải thiện
+- **Trang Kết nối gọn hơn:** bỏ ô gom nhóm "Google" phải bấm vào chọn dịch vụ. Giờ chỉ một thẻ Google Workspace bấm là nối; Sheets, Keep và các dịch vụ Google khác đứng riêng như mọi thẻ khác.
 - Thẻ Google Workspace cũ (bản cộng đồng workspace-mcp), Google Tasks, Gmail và Google Calendar riêng không còn hiện để thêm mới. Kết nối đã có vẫn chạy y nguyên.
 
 ### Bảo mật
@@ -19,6 +20,7 @@ title: Google Workspace through Google's own MCP servers, one sign-in for nine s
 - **Google asks before sensitive actions.** Sending mail outside, sharing, moving to trash: Google stops and asks, Javis shows you the question and Google's preview in the chat, and the action runs only if you agree. Javis never answers for you.
 
 ### Improved
+- **Tidier Connections page:** the "Google" group card that opened a service picker is gone. One Google Workspace card connects in one click; Sheets, Keep and the other Google services are cards of their own like any other.
 - The old Google Workspace card (community workspace-mcp), Google Tasks, and the single Gmail and Google Calendar cards are no longer offered for new connections. Connections already made keep running unchanged.
 
 ### Security
