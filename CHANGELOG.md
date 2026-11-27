@@ -6,6 +6,13 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.646.1] - 2026-11-27
+### Sửa lỗi
+- **Javis lại chạy được trên Windows dùng Python 3.15.** Từ bản 0.642.3, máy Windows chạy Python 3.15 chết ngay lúc khởi động, nên nút Cập nhật tự lùi về bản cũ. Bản vá giữ cổng mở trên Windows giờ nhận đúng tham số mới của Python 3.15, và gặp một bản Python lạ hơn nữa thì tự đứng ngoài, server vẫn chạy bình thường.
+- **Máy nào đã vá tay theo hướng dẫn cũng cập nhật bình thường.** Nếu trình cập nhật báo xung đột ở `server/accept_guard.py`, bỏ sửa đổi riêng ở file đó rồi bấm Cập nhật lại.
+### Cải thiện
+- **Cập nhật hỏng thì nói rõ vì sao.** Bản mới không khởi động được thì trình cập nhật đọc log của chính lần khởi động đó trước khi lùi về, ghi các dòng cuối vào update.log và hiện dòng lỗi ngay trên màn hình Cập nhật, thay vì chỉ báo "Bản mới lỗi".
+
 ## [0.646.0] - 2026-11-27
 ### Thêm mới
 - **Muse của Meta có thẻ riêng trên trang Models.** Mở "Kết nối thêm nhà cung cấp", chọn Muse, đặt tên, dán cookie tài khoản, bấm Kết nối Muse. Muse vào Thứ tự dùng như ChatGPT hay Claude, kéo làm dự phòng hoặc chọn làm Model việc nền.
