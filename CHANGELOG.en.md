@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.652.0] - 2026-11-27
+### Improved
+- **Add a Page without pasting the App secret again.** The Facebook Messenger card lists the apps your connected Pages already use. Click one, leave the App secret empty and Log in with Facebook to pick more Pages; Javis reuses the saved App secret. The picker marks Pages already connected and only ticks the new ones, with a hint to click Edit previous settings when Facebook returns only the old Pages.
+
 ## [0.651.1] - 2026-11-27
 ### Fixed
 - **A partner's unread count matches its chat history.** Opening any one chat of a partner used to clear the count on its card while its other chats kept their red dots, and the Partners dot on the left menu pointed at nothing you could find. The card now counts exactly the chats that still show a dot, the partner on screen included.
