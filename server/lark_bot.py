@@ -39,7 +39,7 @@ import httpx
 
 import localefmt
 import stt
-from bot_gateway import HangLuot, dong_vet, parse_chat_ids, ten_tool
+from bot_gateway import HangLuot, dong_vet, parse_chat_ids, ten_tool, trace_wanted
 
 DOMAINS = {"feishu": "https://open.feishu.cn", "lark": "https://open.larksuite.com"}
 
@@ -536,7 +536,7 @@ class LarkBot(HangLuot):
             reply = reply.get("text") or ""
         if silent and not str(reply or "").strip() and not files:
             return
-        if tools and not self.giau_trang_thai:
+        if tools and not self.giau_trang_thai and trace_wanted():
             reply = f"{reply}\n\n<font color='grey'>{dong_vet(tools, time.monotonic() - t0)}</font>"
         if str(reply or "").strip() or not files:
             await self._send(client, chat, reply)
