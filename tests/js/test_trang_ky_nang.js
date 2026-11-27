@@ -108,9 +108,9 @@ check("thanh xuất gọi đúng đường tải gói chung", /skBulkExport"\)\.
 check("bật/tắt cả loạt chạy tuần tự rồi tải lại mà giữ vị trí", /for \(const s of ds\) \{/.test(STUDIO) && /await taiLaiGiuViTri\(\);/.test(STUDIO));
 
 // ============================================================
-// F. Form: đếm 150 ký tự + hiện lỗi server thay vì nuốt
+// F. Form: đếm 1.024 ký tự (chuẩn Agent Skills) + hiện lỗi server thay vì nuốt
 // ============================================================
-check("trần mô tả khai một chỗ", /const SKILL_DESC_MAX = 150;/.test(STUDIO));
+check("trần mô tả khai một chỗ", /const SKILL_DESC_MAX = 1024;/.test(STUDIO));
 const FORM = cat("  async function openSkillForm(slug) {", "  async function deleteSkill(");
 check("ô mô tả đếm ký tự khi gõ", /desc\.oninput = demMoTa;/.test(FORM));
 check("vượt trần thì chặn lưu ngay ở form", /if \(demMoTa\(\)\) \{ desc\.focus\(\); return; \}/.test(FORM));

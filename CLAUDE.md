@@ -205,7 +205,7 @@ A file the user sends (path in the message): **only READ it and answer.** Conver
 When asked in words ("create an agent that writes emails", "add a step to workflow X"), **write the .md file yourself** from the `javis-builder` templates (load it, do not copy from memory). Paths are FLAT at the brain root (absolute ones in the "LỚP AGENTIC" block): agent `agents/<slug>.md`, workflow `workflows/<slug>.md`, skill `skills/<slug>/SKILL.md` (works on every engine via `javis_use_skill`). Never write into the old `Javis/agents|workflows`: the app never sees it there.
 
 Often broken, so know them up front:
-- **`description` is AT MOST 150 characters.** The router cuts at exactly 150, so a longer tail is LOST SILENTLY and the skill cannot be routed. COUNT it; state the capability, no filler; trigger examples go in a `## When to use` body section.
+- **`description`: AT MOST 1,024 characters** (Agent Skills standard). Javis finds skills by their WHOLE text, so say what it does and when to use it; first sentence = the capability, no filler; long examples go in a `## When to use` body section.
 - **Classify it yourself:** agent `tags` (list), skill/workflow one `group`, reusing what is already in use. **NEVER leave `group` empty, nor `tags`.**
 - `slug` is lowercase ASCII, hyphenated, no diacritics ("Viết email" → `viet-email`). A workflow needing a missing agent: create the agent first. Then report briefly what you created.
 

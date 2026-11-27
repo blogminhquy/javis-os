@@ -104,27 +104,32 @@ class RoutingOverlayTests(base.ActivationBase):
         with self.assertRaisesRegex(ValueError, "translated"):
             live.evaluate(self.owner, self.target, DESCRIPTION, CASES, event_key="routing-translated")
 
-    def test_overlay_candidates_keep_the_search_set(self):
-        from lazy_skill_runtime import _overlay_candidates
-        found = [{"name": "viet-email", "kind": "skill", "summary": "Soan thu", "metadata": {"slug": "viet-email"}},
-                 {"name": "web-tool", "kind": "tool", "summary": "x", "metadata": {}}]
-        rows = _overlay_candidates(self.root, "", "doi soat", found, {"report": DESCRIPTION})
-        self.assertEqual([r["metadata"]["slug"] for r in rows], ["viet-email", "report"])
-        self.assertEqual(rows[0]["summary"], "Soan thu")
-        self.assertEqual(rows[1]["summary"], DESCRIPTION)
-        rows = _overlay_candidates(self.root, "", "q", [{"name": "report", "kind": "skill", "summary": "old",
-                                                        "metadata": {"slug": "report"}}], {"report": DESCRIPTION})
-        self.assertEqual([r["summary"] for r in rows], [DESCRIPTION])
+    def test_live_evaluation_ranks_the_brain_index_with_the_overlay(self):
+        from capability_registry import CapabilityRegistry
+        live = R.Routing(self.assets, registry=CapabilityRegistry(self.root.parent / "registry-index"))
+        decide = live._decider(self.root)
+        plain = decide("doi soat cong no khach hang", None)
+        overlaid = decide("doi soat cong no khach hang", {"report": DESCRIPTION})
+        self.assertEqual(overlaid["slug"], "report")
+        self.assertIn(overlaid["action"], ("load", "suggest"))
+        self.assertNotEqual(plain, overlaid)
+        report = live.evaluate(self.owner, self.target, DESCRIPTION, CASES, event_key="routing-live-index")["report"]
+        self.assertEqual(report["measured_router"], "javis_skill_finder")
 
     def test_prompt_index_uses_overlays_only_when_the_caller_says_api(self):
         import main
         base.IA.configure(self.store.path, self.assets.blobs)  # importing main points read time at its own state
         candidate = self.evaluate(key="routing-prompt-eval")
         self.routing.apply(self.owner, candidate["candidate_id"], event_key="routing-prompt-apply")
-        api = main.build_adaptive_source_prompt(str(self.root), include_skills=True, routing_overlays=True)
-        cli = main.build_adaptive_source_prompt(str(self.root), include_skills=True)
+        # 2026-11-27: the router only names skills; descriptions reach the model in the turn's suggestions, and the
+        # owner's overlay is what an API turn's suggestion shows and ranks by.
+        api = main._skill_turn_head(str(self.root), "", "doi soat cong no khach hang", overlays=True)
+        cli = main._skill_turn_head(str(self.root), "", "doi soat cong no khach hang")
         self.assertIn(DESCRIPTION, api)
         self.assertNotIn(DESCRIPTION, cli)
+        router = main.build_adaptive_source_prompt(str(self.root), include_skills=True, routing_overlays=True)
+        self.assertIn("report", router)
+        self.assertNotIn(DESCRIPTION, router)
 
     def test_bound_task_scope_never_mixes_live_overlays(self):
         from unittest.mock import patch
@@ -167,7 +172,7 @@ class RoutingOverlayTests(base.ActivationBase):
         listed = client.get(f"/improvement-routing?target_id={self.target}").json()
         self.assertEqual(listed["overlays"][0]["overlay_id"], applied["overlay"]["overlay_id"])
         self.assertIn("assistant_chats", listed["coverage"]["not_served"])
-        bad = client.post("/improvement-routing/evaluate", json={"target_id": self.target, "description": "x" * 200,
+        bad = client.post("/improvement-routing/evaluate", json={"target_id": self.target, "description": "x" * 1100,
                                                                  "cases": CASES, "event_key": "http-routing-bad"})
         self.assertEqual(bad.status_code, 422)
 

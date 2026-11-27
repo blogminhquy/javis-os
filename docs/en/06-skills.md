@@ -16,23 +16,30 @@ A skill in Javis is a folder containing a `SKILL.md` file at `skills/<slug>/SKIL
 
 The rest of the file is the detailed instruction the AI follows when the skill runs.
 
-The canonical copy lives at `skills/<slug>/SKILL.md`, which is exactly what the dashboard shows and what Javis loads through the router. Javis also keeps a **mirror** at `.claude/skills/<slug>` for Claude Code's native loading. The mirror is identical except for one thing: if `description` is longer than 150 characters, the mirror is trimmed to 150 with an ellipsis (the copy in `skills/` keeps your full text). That only happens with skills imported from an external package or written by hand through the Files page, because skills saved through the form are blocked earlier.
+The canonical copy lives at `skills/<slug>/SKILL.md`, which is exactly what the dashboard shows and what Javis loads through the router. Javis also keeps a **mirror** at `.claude/skills/<slug>` for Claude Code's native loading. The mirror is identical except for one thing: if `description` is longer than 150 characters, the mirror is trimmed to 150 with an ellipsis (the copy in `skills/` keeps your full text). Why: Claude Code lists every mirrored skill with its description at the head of each session, so that copy stays short. Javis itself reads the whole description from `skills/`.
 
 ## The `description` rules (read before creating a skill)
 
 This is where people get stuck without knowing why. When you click **💾 Save**, the server checks `description` and **refuses to save** if it breaks either rule:
 
-**1. At most 150 characters.** This is not cosmetic. Javis truncates the description at exactly 150 characters when injecting it into the system prompt and into the `javis_use_skill` tool description, so the excess is lost silently and the skill cannot be routed. The rejection message says exactly that, and tells you to move trigger examples into a `## When to use` section in the body.
+**1. At most 1,024 characters** (the Agent Skills standard, since 2026-11-27; it used to be 150). Javis reads the whole description to find a skill, so only text past the limit is ignored. Skills imported from Anthropic or another store, written to this standard, work as they are.
 
 **2. No hollow opening phrases.** Blocked openings include "Activate when...", "Use this skill when...", "This skill is used for..." and their Vietnamese equivalents. Every skill opens the same way, so that phrase burns character budget without distinguishing anything. The rejection message suggests the right shape: state the capability directly, for example "Summarise meeting minutes into a task list."
 
-The right way: one sentence stating what the skill **can do**, under 150 characters. Long trigger examples, keyword lists and detailed situations belong in a `## When to use` section in the **body** of `SKILL.md`, where nothing is truncated and which is only read once the skill is loaded. Put briefly: the description is for FINDING, the body is for DOING.
+The right way: a first sentence stating what the skill **can do**, then **when to use it**, in the words you would use when asking for that job. Long examples and lists of situations belong in a `## When to use` section in the **body** of `SKILL.md`: Javis reads that section too when it looks for a skill.
 
 These rules apply both to the dashboard form and to skills proposed by the **Self-learning** page (a violating skill is blocked and listed as skipped).
 
 ## How triggering works
 
-A skill activates on its `description` (and you can also call it by hand, see the next section). When you type or say a request, Javis matches it against the `description` of every enabled skill and loads the matching instruction. On Claude Code that is a native load; on other engines Javis injects the skill list into the system prompt and loads through the `javis_use_skill` tool.
+Since 2026-11-27 Javis finds skills in four layers:
+
+1. **Names.** The system prompt names every enabled skill (slug), by group. The list is fixed, so the prompt cache keeps holding.
+2. **Suggestions each turn.** Javis ranks every skill against what you just typed (and the previous messages when this one is short, like "ok, go on"), by its whole description, its `## When to use` section, its headings and its group. The few that fit best open the message the model gets, with their whole description. A request no skill fits gets nothing.
+3. **Search on demand.** The model calls `javis_use_skill(find=...)` to find a skill for a job; `javis_search_tools` and `find_skills()` inside `javis_code` return skills too.
+4. **Learning.** When a skill is loaded after a request the suggestions missed, that request is remembered for it (`Javis/skill-routing.json`), so the next one worded the same way finds it.
+
+On the token-saving levels Javis also preloads a skill's body when it is sure that is the skill. On Claude Code skills still load natively as before.
 
 So a skill's quality depends heavily on how you write `description`. A description that states the capability and the right keywords fires at the right time. A vague description either never fires or fires on the wrong thing.
 
@@ -152,7 +159,7 @@ If something goes wrong, Javis reports that the state could not be changed, alon
 2. Fill in the form:
    - **Skill name**: something memorable, for example "Write sales emails".
    - **Group**: type a group name, for example "Marketing". This field suggests groups you already use, so you can click one and stay consistent. Do not leave it empty (it would land in "Chung").
-   - **Description (decides when the skill activates)**: one sentence stating what the skill does, **under 150 characters**, not opening with "Activate when..." (see "The `description` rules" above). Breaking the rules makes the server refuse and the skill is not saved.
+   - **Description (decides when the skill activates)**: one sentence stating what the skill does, **at most 1,024 characters**, not opening with "Activate when..." (see "The `description` rules" above). Breaking the rules makes the server refuse and the skill is not saved.
    - **Content (SKILL.md, the instructions for the AI)**: write the detailed instruction the AI follows (steps, templates, rules). This is where the `## When to use` section with full trigger examples belongs. Leave it empty and Javis generates a minimal body from the name and description.
 3. Click **💾 Save**. To abandon it, click **Cancel**.
 
@@ -229,17 +236,17 @@ On the **Agents** page, creating or editing an agent shows a **Skills** section 
 
 ## Tips
 
-- Write `description` like a headline: state the capability directly, under 150 characters. Push every trigger example and keyword into `## When to use` in the body, where it is neither blocked nor truncated.
-- Count the characters before saving. 150 is shorter than it feels, about two short sentences.
+- In `description`, state the capability in the first sentence, then when to use it, in the words you would use. At most 1,024 characters.
+- Long examples and lists of situations go in `## When to use` in the body: Javis reads that section too when it looks for a skill.
 - One skill should do one clear thing. Overly broad skills trigger on the wrong requests; splitting them and putting them in the same group is easier to manage.
-- Keep the number of enabled skills under 20 so all of them stay in the router. Turn off what you do not need.
+- Enable as many skills as you like: the router names every one, and each turn only the few that fit come with their whole description.
 - Use groups consistently. In the **Group** field, prefer the suggestions over inventing a new name, so the group column does not fragment.
 - To try a skill you are unsure about, create it and **disable** it when unused, rather than deleting and recreating.
 - To be certain a skill is used for a given job, call it by hand with `/slug` instead of hoping the trigger catches it.
 
 ## Common problems
 
-- **You clicked 💾 Save but the skill does not appear in the list:** almost certainly `description` broke a rule (over 150 characters, or opening with "Activate when..."). The server refused to save and the page simply returned to the list without showing the error. Click **+ Skill** again, shorten the description under 150 characters, drop the hollow opening, and save again.
+- **You clicked 💾 Save but the skill does not appear in the list:** almost certainly `description` broke a rule (over 1,024 characters, or opening with "Activate when..."). The server refused to save and the page simply returned to the list without showing the error. Click **+ Skill** again, shorten the description under 1,024 characters, drop the hollow opening, and save again.
 - **You created a skill but Javis never uses it:** check three things in order. One, is it **enabled** (card not dimmed, checkbox ticked). Two, does `description` state the capability. Three, does the brain have more than 20 skills enabled; if so, yours may have fallen outside the router, so disable some others or call it by hand with `/slug`.
 - **The list is empty although you created skills:** make sure you are looking at the right brain. The source is the selected brain's `skills/`; switching brains switches the list.
 - **Toggling reports that the state could not be changed:** usually folder write permissions or a locked folder. See [Troubleshooting & FAQ](17-troubleshooting.md).

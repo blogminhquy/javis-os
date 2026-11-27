@@ -102,6 +102,10 @@ async def _hoc(brain, sid, u, j):
 main.learn_feature.enqueue = _hoc
 
 BRAIN = main._brain_key(str(Path(tempfile.mkdtemp(prefix="brain-gate-")).resolve()))
+# A brain has its system skills from startup on (main syncs every brain when it starts). This one is made after
+# startup, so sync it now; otherwise the first turn that draws the skill router syncs it and the reply is followed
+# by a "skills created" notice.
+main.system_sync.ensure_synced(main._brain_root(BRAIN))
 ss = main.get_store()
 WEB = ss.create_session(brain=BRAIN, engine="test", model="test", title="Viết Web bán nước mắm")
 ss.append_message(WEB, "user", "Làm trang web bán nước mắm giúp anh")

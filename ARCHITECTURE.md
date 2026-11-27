@@ -490,7 +490,7 @@ Good first areas, roughly from smallest to largest:
    (`plugin.yaml` with `name_en`/`description_en`, `min_mode`, and `plugin.py` with
    `register(ctx)`). User guide: [docs/en/20-plugins.md](docs/en/20-plugins.md).
 4. **A skill.** System skills live in `.claude/skills/<slug>/SKILL.md` and are synced into every
-   brain by `system_sync.py`; keep `description` under 150 characters (the router truncates).
+   brain by `system_sync.py`; keep `description` under 1,024 characters (the Agent Skills standard; `skill_finder` ranks skills by their whole text).
    User guide: [docs/en/06-skills.md](docs/en/06-skills.md).
 
 ## Further reading

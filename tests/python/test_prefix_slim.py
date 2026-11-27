@@ -53,8 +53,12 @@ def body_of(text):
     return text[m.end():] if m else text
 
 
-CAP = skill_router.SKILL_DESC_MAX
-check("tran lay tu skill_router (mot nguon chan ly)", CAP == 150)
+# The mirror's cap is the short form (2026-11-27): Javis's own router reads the whole description (skill_finder),
+# while Claude Code lists every mirrored skill with its description at the head of each session.
+CAP = skill_router.SKILL_SUMMARY_MAX
+check("mirror cap comes from skill_router (one source of truth)", CAP == 150)
+check("the mirror uses the short form, not the 1,024 write cap",
+      "SKILL_SUMMARY_MAX" in (ROOT / "server" / "system_sync.py").read_text(encoding="utf-8"))
 
 # ---- 1. cắt description khi mirror ----
 LONG = "Kich hoat khi nguoi dung muon " + ("lam viec gi do rat cu the va dai dong. " * 30)
@@ -143,7 +147,7 @@ check("da go mau frontmatter agent/workflow", "type: workflow\nname: <Tên>" not
 check("co tro toi javis-builder", "javis-builder" in md)
 
 for luat in ("mode: full", "enabled: false", "JAVIS_ENABLE_USER_PLUGINS",
-             "AT MOST 150 characters", "NEVER leave `group` empty", "owner_chat",
+             "AT MOST 1,024 characters", "NEVER leave `group` empty", "owner_chat",
              "notify: false",
              "em dash"):
     check(f"GIU luat: {luat}", luat in md)

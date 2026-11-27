@@ -7,7 +7,7 @@ Chủ repo 05/10/2026: "nhiều khi người ta import skill ra chỗ khác thì
      Claude Code thấy ngay (nên trang không cần ô chọn định dạng).
   2. NHẬP: một .zip có NHIỀU thư mục skill cùng cấp (nén nguyên thư mục skills của công cụ
      khác) trước đây chỉ vào được skill đầu tiên, phần còn lại mất im lặng.
-Kèm: trần mô tả 150 ký tự của trang (studio.js) phải bằng trần của router.
+Kèm: trần mô tả 1.024 ký tự của trang (studio.js) phải bằng trần của router.
 """
 from _paths import ROOT, SERVER  # noqa: E402,F401
 import io

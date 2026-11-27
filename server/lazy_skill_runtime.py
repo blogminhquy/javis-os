@@ -3,19 +3,16 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 import sqlite3
-import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
+import skill_finder
 import skill_router
 from capability_registry import CapabilityRegistry
 from context_compiler import ContextItem, HeuristicTokenizer
 
 SKILL_SOURCE_POLICY_VERSION = "lazy-skill-source-v2"
-_TOKEN_RE = re.compile(r"[a-z0-9]{2,}")
-_EXPLICIT_RE = re.compile(r"\b(skill|kỹ năng|quy trình|workflow|dùng .* để|use .* to)\b", re.IGNORECASE)
 
 
 def _task_candidates(brain, manifests):
@@ -37,26 +34,6 @@ def _task_candidates(brain, manifests):
     return result
 
 
-def _overlay_candidates(brain, lang, query, found, descriptions):
-    """Registry-search skill rows with overlaid summaries; an overlaid skill the search missed is added."""
-    found = [dict(x) for x in found if str(x.get("kind") or "") == "skill"]
-    seen = set()
-    for row in found:
-        slug = str((row.get("metadata") or {}).get("slug") or row.get("name") or "")
-        seen.add(slug)
-        if slug in descriptions:
-            row["summary"] = descriptions[slug]
-    missing = [m for m in skill_router.list_skill_manifests(brain, lang) if m["slug"] in descriptions and m["slug"] not in seen]
-    for manifest in missing:
-        found.extend(_task_candidates(brain, [{**manifest, "description": descriptions[manifest["slug"]]}]))
-    return found
-
-
-def _norm(value: str) -> str:
-    raw = unicodedata.normalize("NFKD", str(value or "").casefold())
-    return " ".join(_TOKEN_RE.findall("".join(c for c in raw if not unicodedata.combining(c))))
-
-
 @dataclass(frozen=True)
 class SkillSelection:
     action: str
@@ -76,10 +53,9 @@ class LazySkillSource:
         self._incomplete: dict[tuple, int] = {}
 
     def refresh(self, brain: str | Path, lang: str = "") -> dict:
-        # `lang` nằm TRONG khoá cache, không chỉ trong lời gọi. Chấm điểm ở `_score` là so
-        # TRÙNG TỪ giữa câu người dùng và mô tả skill, nên mô tả phải cùng thứ tiếng với câu
-        # hỏi thì mới có điểm; đổi ngôn ngữ mà vẫn trả bộ manifest cũ là im lặng vô hiệu hoá
-        # đúng cái vừa sửa. Thiếu bản dịch thì skill_router tự rơi về mô tả gốc.
+        # `lang` is part of the cache key, not only of the call: the manifests carry the description in the
+        # language asked for (`description_<lang>`), and a language switch that kept the old set would score the
+        # request against the wrong text. A missing translation falls back to the original (skill_router).
         key = (str(Path(brain).resolve()).casefold(), str(lang or ""))
         signature = skill_router.skill_manifest_signature(brain)
         cached = self._refresh_cache.get(key)
@@ -96,27 +72,12 @@ class LazySkillSource:
         self._refresh_cache[key] = (signature, dict(result))
         return result
 
-    @staticmethod
-    def _score(query: str, item: dict) -> float:
-        query_norm = _norm(query)
-        query_terms = set(query_norm.split())
-        name = _norm(item.get("name") or "")
-        aliases = {_norm(x) for x in item.get("aliases") or []}
-        summary = _norm(item.get("summary") or "")
-        name_terms = set((name + " " + " ".join(aliases)).split())
-        all_terms = name_terms | set(summary.split())
-        coverage = len(query_terms & all_terms) / max(1, len(query_terms))
-        discriminative = len(query_terms & name_terms) / max(1, len(name_terms))
-        phrase = bool(query_norm and (query_norm in summary or query_norm in name))
-        explicit = query_norm == name or query_norm in aliases
-        return min(1.0, coverage * 0.52 + discriminative * 0.25 +
-                   (0.13 if phrase else 0) + (0.25 if explicit else 0))
-
     def resolve(self, brain: str | Path, query: str, min_score: float = 0.24,
                 ambiguity_margin: float = 0.08, max_body_chars: int = 12000,
                 lang: str = "", descriptions: dict | None = None, session_key: str = "") -> SkillSelection:
-        """`descriptions`: owner-applied routing descriptions (M4) for this chat, {slug: text}. With
-        any, ranking runs over the frozen manifest projection so the overlay text is what is scored."""
+        """Preload the body of the skill this request clearly needs, ranked by skill_finder. `descriptions`:
+        owner-applied routing descriptions (M4) for this chat, {slug: text}, scored instead of the file's own.
+        `min_score` and `ambiguity_margin` belonged to the word-overlap ranking this replaced; they are ignored."""
         from improvement_task_skill_scope import current, ScopeUnavailable
         from improvement_blobs import AssetUnavailable
         try:
@@ -129,53 +90,45 @@ class LazySkillSource:
                 manifests = scope.manifests(lang)
                 revision = hashlib.sha256(json.dumps({'scope': scope.registry_revision, 'lang': str(lang or ''),
                     'manifests': manifests}, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
-                incomplete = any(not str(item['description'] or '').strip() for item in manifests)
                 candidates = _task_candidates(brain, manifests)
             except (ScopeUnavailable, AssetUnavailable, OSError, sqlite3.Error):
                 # AdaptiveContext treats exceptions/fallback as permission to restore
                 # its legacy router. A dead bound owner must suppress that fallback.
                 return SkillSelection('none', 'task_scope_unavailable')
-        elif descriptions:
-            # Same registry search as without an overlay; only the overlaid skills are rescored with the
-            # owner-applied text (added when the search missed them), so no other skill's routing moves.
-            self.refresh(brain, lang)
-            key = (str(Path(brain).resolve()).casefold(), str(lang or ""))
-            incomplete = self._incomplete.get(key, 0)
-            revision = hashlib.sha256(json.dumps({'registry': self.registry.revision(brain), 'routing_overlay': descriptions},
-                ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
-            candidates = _overlay_candidates(brain, lang, query, self.registry.search(query, brain, 40), descriptions)
         else:
-            # Unbound: a registry error still propagates, so the caller keeps the legacy router.
+            # Unbound: the registry is refreshed as before (other readers use it) and a registry error still
+            # propagates, so the caller keeps the legacy router.
             self.refresh(brain, lang)
-            key = (str(Path(brain).resolve()).casefold(), str(lang or ""))
-            incomplete = self._incomplete.get(key, 0)
-            revision = self.registry.revision(brain)
-            candidates = [x for x in self.registry.search(query, brain, 40)
-                          if str(x.get("kind") or "") == "skill"]
-        if incomplete:
-            return SkillSelection(
-                "fallback", "manifest_incomplete", registry_revision=revision
-            )
-        ranked = sorted(((self._score(query, x), x) for x in candidates),
-                        key=lambda pair: (-pair[0], pair[1]["capability_id"]))
-        if not ranked:
-            # No relevant skill is a valid lazy outcome, unless user explicitly asked
-            # for one: then old router must remain the fallback.
-            reason = "explicit_skill_unresolved" if _EXPLICIT_RE.search(query or "") else "no_skill_needed"
-            action = "fallback" if reason == "explicit_skill_unresolved" else "none"
-            return SkillSelection(action, reason, registry_revision=revision)
-        top_score, top = ranked[0]
-        runner = ranked[1][0] if len(ranked) > 1 else 0.0
-        if top_score < min_score:
-            if _EXPLICIT_RE.search(query or ""):
-                return SkillSelection("fallback", "low_confidence", score=top_score,
-                                      runner_up_score=runner, registry_revision=revision)
-            return SkillSelection("none", "no_skill_needed", score=top_score,
-                                  runner_up_score=runner, registry_revision=revision)
-        if runner and top_score - runner < ambiguity_margin:
-            return SkillSelection("fallback", "ambiguous", score=top_score,
-                                  runner_up_score=runner, registry_revision=revision)
-
+            if descriptions:
+                revision = hashlib.sha256(json.dumps({'registry': self.registry.revision(brain),
+                    'routing_overlay': descriptions}, ensure_ascii=False, sort_keys=True,
+                    separators=(',', ':')).encode()).hexdigest()
+            else:
+                revision = self.registry.revision(brain)
+            manifests = skill_router.list_skill_manifests(brain, lang)
+            candidates = None
+        # 2026-11-27: which skill is ranked by skill_finder over the WHOLE text of every skill (description, "When to
+        # use", learned requests), not by word overlap with a description cut at 150 characters. Its body is loaded
+        # here only when the first skill is clearly the one (skill_finder.confident); otherwise nothing is loaded
+        # and the turn's suggestions (main._skill_turn_head) put the few that fit in front of the model. An empty or
+        # missing description no longer sends the turn back to the old router: the finder reads the body too.
+        matches = skill_finder.suggest(brain, query, (), session_key, lang,
+                                       descriptions=(descriptions if scope is None else None))
+        if not matches:
+            return SkillSelection("none", "no_skill_needed", registry_revision=revision)
+        first = matches[0]
+        runner = (first.score / first.margin) if first.margin else 0.0
+        if not skill_finder.confident(matches):
+            return SkillSelection("none", "not_confident", score=round(first.score, 6),
+                                  runner_up_score=round(runner, 6), registry_revision=revision)
+        if candidates is None:
+            manifest = next((m for m in manifests if m.get("slug") == first.slug), None)
+            candidates = _task_candidates(brain, [manifest]) if manifest else []
+        top = next((c for c in candidates if (c.get("metadata") or {}).get("slug") == first.slug), None)
+        if top is None:
+            return SkillSelection("none" if scope is not None else "fallback", "source_unreadable",
+                                  slug=first.slug, score=round(first.score, 6), registry_revision=revision)
+        top_score = first.score
         slug = str((top.get("metadata") or {}).get("slug") or top.get("name") or "")
         try:
             asset = (scope.read(slug, expected_manifest=top['_task_manifest']) if scope is not None
