@@ -8,6 +8,16 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.647.0] - 2026-11-27
+### Added
+- **Google Workspace card through Google's own servers.** Gmail, Calendar, Drive, Docs, Sheets, Slides, Tasks, Chat and Contacts go through Google's official MCP servers (generally available on 2026-11-24, the same backend as the Google Workspace CLI), with one sign-in. You sign in inside the dashboard, so it works on a VPS too, without the screen the old card needed. Making the OAuth client takes about 3 minutes with Google's Personal mode page: it enables the APIs, with no consent screen or app verification to do.
+- **Google asks before sensitive actions.** Sending mail outside, sharing, moving to trash: Google stops and asks, Javis shows you the question and Google's preview in the chat, and the action runs only if you agree. Javis never answers for you.
+### Improved
+- **Tidier Connections page:** the "Google" group card that opened a service picker is gone. One Google Workspace card connects in one click; Sheets, Keep and the other Google services are cards of their own like any other.
+- The old Google Workspace card (community workspace-mcp), Google Tasks, and the single Gmail and Google Calendar cards are no longer offered for new connections. Connections already made keep running unchanged.
+### Security
+- **Gmail card: sending real mail now needs Full access.** Google added send, reply, forward, trash and spam tools to its Gmail server. Before this release a Gmail connection at Draft could send real mail, and one at Read-only could mark spam.
+
 ## [0.646.1] - 2026-11-27
 ### Fixed
 - **Javis runs on Windows with Python 3.15 again.** Since 0.642.3, Windows machines on Python 3.15 died at startup, so the Update button rolled back to the old version. The patch that keeps the port open on Windows now takes Python 3.15's new argument, and on a Python it does not know yet it stands aside so the server still starts.
