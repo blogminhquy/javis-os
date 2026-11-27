@@ -152,12 +152,13 @@ check("no em or en dash in the chat line", "\u2014" not in note and "\u2013" not
 # ---- 5. wired into both lanes ----
 src = (Path(SERVER) / "main.py").read_text(encoding="utf-8")
 check("Claude Code lane asks the rule, with keep-warm",
-      "_cold_cache_decision, store, conv_sid, _claude_context, _row0, True" in src)
+      '"claude-code",\n' in src and "_claude_context, _row0, True)" in src)
 check("Claude Code lane only uses a measured thread size",
-      '_row0.get("last_context_provider") != "claude-code"' in src)
+      '_row0.get("last_context_provider") == "claude-code"\n                        and await _cold_cache_rotate' in src)
 check("Codex lane asks the rule with a measured thread size only",
-      "_codex_ctx if _codex_do else 0, _row0)" in src)
-check("both lanes record why the thread rotated", src.count('"reason": "cold_cache"') == 2)
+      "if stored_codex_thread and _codex_do and not compaction.nen_mach_thue_bao(" in src
+      and '_cold_cache_rotate(ws, store, conv_sid, runtime_trace, "codex", _codex_ctx, _row0)' in src)
+check("the rotation records why it happened", '"reason": "cold_cache"' in src)
 
 if fails:
     print(f"\nFAIL - {len(fails)} test: {fails}")

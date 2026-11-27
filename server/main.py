@@ -16954,6 +16954,24 @@ def _cold_cache_note(cold: dict, context_tokens) -> str:
         f"(about {int(cold.get('saving') or 0):,} tokens saved).")
 
 
+async def _cold_cache_rotate(ws, store, conv_sid: str, runtime_trace, engine: str, context_tokens, row: dict,
+                             keepwarm: bool = False) -> bool:
+    """Apply the cold-cache rule to one subscription lane: decide, mark the rotation, record why, and tell the chat.
+    Returns True when the caller must drop its native thread id (each lane clears its own column). Kept out of the
+    turn handler so the lanes stay short (tests/python/test_claude_cli_moi_lai_mach.py reads the Claude lane by size)."""
+    cold = await asyncio.to_thread(_cold_cache_decision, store, conv_sid, context_tokens, row, keepwarm)
+    if not cold:
+        return False
+    await asyncio.to_thread(store.mark_thread_rotated, conv_sid)
+    _CONTEXT_RUNTIME.record_runtime_event(
+        runtime_trace, "thread.rotated",
+        {"engine": engine, "reason": "cold_cache", "last_input_tokens": int(context_tokens or 0),
+         "idle_min": cold.get("idle_min", 0), "expected_saving": cold.get("saving", 0)})
+    await ws.send_text(json.dumps({"type": "tool_call", "tool": "javis_nen_mach",
+                                   "content": _cold_cache_note(cold, context_tokens)}))
+    return True
+
+
 @app.get("/cache-keepwarm")
 async def cache_keepwarm_get():
     return {"ok": True, "window_min": int(_keepwarm_cfg().get("window_min") or cache_keepwarm.DEFAULT_WINDOW_MIN),
@@ -22311,25 +22329,13 @@ async def _chat_socket(ws):
                                   else _row0.get("last_input_tokens")) or 0)
                 # 2026-11-27: the cold-cache rule, same as the Claude Code lane. OpenAI's prompt cache does not outlive
                 # an hour of idle either, so a long thread resumed after a break is read again at full price.
-                _codex_cold = ({} if not stored_codex_thread or compaction.nen_mach_thue_bao(
-                    _codex_ctx, msg_count=_row0.get("msg_count"), rotated_at=_row0.get("thread_rotated_msg"))
-                    # Only a MEASURED thread size: the turn-total fallback sums every request of a tool loop.
-                    else await asyncio.to_thread(_cold_cache_decision, store, conv_sid,
-                                                 _codex_ctx if _codex_do else 0, _row0))
-                if _codex_cold:
+                # Only a MEASURED thread size (_codex_do): the turn-total fallback sums every request of a tool loop.
+                if stored_codex_thread and _codex_do and not compaction.nen_mach_thue_bao(
+                        _codex_ctx, msg_count=_row0.get("msg_count"), rotated_at=_row0.get("thread_rotated_msg")) \
+                        and await _cold_cache_rotate(ws, store, conv_sid, runtime_trace, "codex", _codex_ctx, _row0):
                     stored_codex_thread = ""
                     _first_out["rotated"] = True
                     await asyncio.to_thread(store.clear_codex_thread_id, conv_sid)
-                    await asyncio.to_thread(store.mark_thread_rotated, conv_sid)
-                    _CONTEXT_RUNTIME.record_runtime_event(
-                        runtime_trace, "thread.rotated",
-                        {"engine": "codex", "reason": "cold_cache",
-                         "last_input_tokens": _codex_ctx, "idle_min": _codex_cold.get("idle_min", 0),
-                         "expected_saving": _codex_cold.get("saving", 0)})
-                    await ws.send_text(json.dumps({
-                        "type": "tool_call", "tool": "javis_nen_mach",
-                        "content": _cold_cache_note(_codex_cold, _codex_ctx),
-                    }))
                 if stored_codex_thread and compaction.nen_mach_thue_bao(
                         _codex_ctx, msg_count=_row0.get("msg_count"),
                         rotated_at=_row0.get("thread_rotated_msg")):
@@ -22878,26 +22884,12 @@ async def _chat_socket(ws):
                 _cli_xoay_mach = bool(cli.session_id) and compaction.nen_mach_thue_bao(
                     _claude_context, msg_count=_row0.get("msg_count"),
                     rotated_at=_row0.get("thread_rotated_msg"))
-                # 2026-11-27: the cold-cache rule. A long thread whose cache expired during a break is re-seeded
-                # from the transcript instead of being re-written whole into the cache (compaction.cold_cache_rotates).
-                # Only a MEASURED thread size: the turn-total fallback sums every request of a tool loop.
-                _cli_cold = ({} if _cli_xoay_mach or not cli.session_id
-                             or _row0.get("last_context_provider") != "claude-code"
-                             else await asyncio.to_thread(
-                                 _cold_cache_decision, store, conv_sid, _claude_context, _row0, True))
-                if _cli_cold:
+                # 2026-11-27 cold-cache rule (compaction.cold_cache_rotates), on a MEASURED thread size only.
+                if (cli.session_id and not _cli_xoay_mach and _row0.get("last_context_provider") == "claude-code"
+                        and await _cold_cache_rotate(ws, store, conv_sid, runtime_trace, "claude-code",
+                                                     _claude_context, _row0, True)):
                     cli.session_id = None
                     _first_out["rotated"] = True
-                    await asyncio.to_thread(store.mark_thread_rotated, conv_sid)
-                    _CONTEXT_RUNTIME.record_runtime_event(
-                        runtime_trace, "thread.rotated",
-                        {"engine": "claude-code", "reason": "cold_cache",
-                         "last_input_tokens": _claude_context, "idle_min": _cli_cold.get("idle_min", 0),
-                         "expected_saving": _cli_cold.get("saving", 0)})
-                    await ws.send_text(json.dumps({
-                        "type": "tool_call", "tool": "javis_nen_mach",
-                        "content": _cold_cache_note(_cli_cold, _claude_context),
-                    }))
                 if _cli_xoay_mach:
                     cli.session_id = None
                     _first_out["rotated"] = True
