@@ -8,6 +8,11 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.648.0] - 2026-11-27
+### Added
+- **Each assistant remembers the model you pick in its chat.** Changing the model in a chat with an assistant pins it for chatting with that assistant: new chats and old ones with it run that model. Its background work (reminders, loops, Kanban, team turns, workflows, bots) keeps the model in its settings. The model list has a "Follow the model set on the assistant" row to clear the pin.
+- **A new assistant gets a model that fits its work.** An assistant made in chat, installed from the Store, created on the Partners page or in a team chat and left on "Default" gets one from the first card of your usage order: a strong model for code, data and finance, a balanced one for marketing, sales and customer care, a light one for translation, notes and reminders. Claude picks between Opus, Sonnet and Haiku; ChatGPT, Antigravity and Grok Build pick from your account's own model list. The line under the answer names the model, and you can change it any time.
+
 ## [0.647.0] - 2026-11-27
 ### Added
 - **Google Workspace card through Google's own servers.** Gmail, Calendar, Drive, Docs, Sheets, Slides, Tasks, Chat and Contacts go through Google's official MCP servers (generally available on 2026-11-24, the same backend as the Google Workspace CLI), with one sign-in. You sign in inside the dashboard, so it works on a VPS too, without the screen the old card needed. Making the OAuth client takes about 3 minutes with Google's Personal mode page: it enables the APIs, with no consent screen or app verification to do.

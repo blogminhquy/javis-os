@@ -6,6 +6,11 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.648.0] - 2026-11-27
+### Thêm mới
+- **Mỗi trợ lý nhớ model anh chọn khi chat.** Đổi model ở khung chat với một trợ lý là trợ lý đó ghim luôn model ấy cho chat: mở chat mới hay quay lại chat cũ với trợ lý đều chạy model vừa chọn. Việc nền của trợ lý (nhắc hẹn, loop, Kanban, team, quy trình, bot) vẫn chạy model trong cài đặt. Bảng chọn model có dòng "Theo model trong cài đặt của trợ lý" để gỡ ghim.
+- **Trợ lý mới tự được chọn model hợp việc.** Trợ lý tạo trong chat, cài từ Store, tạo ở trang Cộng sự hay trong nhóm chat mà để "Mặc định" thì Javis chọn trên thẻ đầu tiên trong Thứ tự dùng: việc nặng như code, dữ liệu, tài chính dùng model mạnh; marketing, bán hàng, chăm sóc khách dùng model vừa; dịch, ghi chú, nhắc lịch dùng model nhẹ. Claude chọn giữa Opus, Sonnet, Haiku; ChatGPT, Antigravity và Grok Build chọn trong đúng danh sách model của tài khoản. Dòng báo dưới câu trả lời ghi rõ model đã chọn, đổi lại lúc nào cũng được.
+
 ## [0.647.0] - 2026-11-27
 ### Thêm mới
 - **Thẻ Google Workspace chính chủ Google.** Gmail, Lịch, Drive, Docs, Sheets, Slides, Tasks, Chat và Danh bạ đi qua server MCP chính thức của Google (phát hành chính thức 24/11/2026, cùng nền với Google Workspace CLI), chỉ một lần đăng nhập. Đăng nhập ngay trong dashboard nên chạy được cả trên VPS, không cần máy có màn hình như thẻ cũ. Tạo OAuth client khoảng 3 phút bằng trang Personal mode của Google: tự bật API, không phải làm màn hình đồng ý hay xác minh app.
