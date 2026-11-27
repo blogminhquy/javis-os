@@ -6,6 +6,16 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.647.0] - 2026-11-27
+### Thêm mới
+- **Thẻ Google Workspace chính chủ Google.** Gmail, Lịch, Drive, Docs, Sheets, Slides, Tasks, Chat và Danh bạ đi qua server MCP chính thức của Google (phát hành chính thức 24/11/2026, cùng nền với Google Workspace CLI), chỉ một lần đăng nhập. Đăng nhập ngay trong dashboard nên chạy được cả trên VPS, không cần máy có màn hình như thẻ cũ. Tạo OAuth client khoảng 3 phút bằng trang Personal mode của Google: tự bật API, không phải làm màn hình đồng ý hay xác minh app.
+- **Google hỏi trước khi làm việc nhạy cảm.** Gửi thư ra ngoài, chia sẻ, bỏ vào thùng rác: Google dừng lại hỏi, Javis đưa câu hỏi kèm bản xem trước cho bạn trong khung chat, bạn đồng ý thì việc mới chạy. Javis không bao giờ tự trả lời thay bạn.
+### Cải thiện
+- **Trang Kết nối gọn hơn:** bỏ ô gom nhóm "Google" phải bấm vào chọn dịch vụ. Giờ chỉ một thẻ Google Workspace bấm là nối; Sheets, Keep và các dịch vụ Google khác đứng riêng như mọi thẻ khác.
+- Thẻ Google Workspace cũ (bản cộng đồng workspace-mcp), Google Tasks, Gmail và Google Calendar riêng không còn hiện để thêm mới. Kết nối đã có vẫn chạy y nguyên.
+### Bảo mật
+- **Thẻ Gmail: gửi thư thật giờ cần mức Toàn quyền.** Google vừa thêm vào server Gmail các tool gửi, trả lời, chuyển tiếp, bỏ thùng rác và đánh dấu spam. Trước bản này, kết nối Gmail ở mức Ghi nháp gửi được thư thật, và mức Chỉ đọc đánh dấu spam được.
+
 ## [0.646.1] - 2026-11-27
 ### Sửa lỗi
 - **Javis lại chạy được trên Windows dùng Python 3.15.** Từ bản 0.642.3, máy Windows chạy Python 3.15 chết ngay lúc khởi động, nên nút Cập nhật tự lùi về bản cũ. Bản vá giữ cổng mở trên Windows giờ nhận đúng tham số mới của Python 3.15, và gặp một bản Python lạ hơn nữa thì tự đứng ngoài, server vẫn chạy bình thường.
