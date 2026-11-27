@@ -1,6 +1,7 @@
 # Trí nhớ theo nhu cầu cho cộng sự (Agent Recall)
 
-Ngày: 2026-11-27. Trạng thái: bản thiết kế chờ chủ duyệt.
+Ngày: 2026-11-27. Trạng thái: chủ duyệt cùng ngày (trần 8.000 ký tự, bật sẵn học lúc ghi, làm cả A B C); đã làm,
+xem mục 11.
 
 Chủ repo 27/11/2026: "phần tự học về các file tài liệu ở trong agent nó quá nhiều, mình cần một bộ tìm kiếm để
 không nhồi tất cả ngữ cảnh vào, mà tìm cho phù hợp ... thiết kế có tính đột phá và có tính scale, không ảnh hưởng
@@ -148,3 +149,26 @@ Test bắt buộc của PR A:
 1. Trần Tầng 0 là 8.000 ký tự, vượt thì cảnh báo và đẩy phần vượt xuống tìm kiếm ưu tiên cao: đồng ý không?
 2. PR B gọi model nền lúc ghi (tốn một ít quota của model phụ): bật mặc định hay để chủ tự bật?
 3. Có làm luôn PR C cho Javis Core sau khi A và B ổn không?
+
+## 11. Đã làm (2026-11-27)
+
+Chủ chốt: 1 đồng ý, 2 bật sẵn, 3 làm cả A, B, C.
+
+| Phần | Ở đâu | Ghi chú |
+|---|---|---|
+| Chỉ mục tăng dần, tìm, Hiến pháp, Bản đồ | `server/agent_recall.py` | Đo: trí nhớ 3,2 MB dựng lần đầu 2 giây, prompt 1.545 ký tự, mỗi lần tìm 1-40 mili giây, lượt sau không đổi 9 mili giây |
+| Tầng 0-1 trong prompt cộng sự | `_agent_sysprompt` (`server/main.py`) | Bộ nhớ dưới ngưỡng: prompt giống hệt bản cũ (có test) |
+| Tầng 2 | `run_turn` (chat riêng mọi engine), `_cli_turn` (Telegram, CLI), hai đường chạy bước quy trình, lượt nhóm (`team_runner.recall_block`) | Khối nằm ở đầu tin nhắn, `chat_recall.strip_block` gỡ nó trước khi lưu lịch sử |
+| Tầng 3 | tool `javis_recall` (`agent_recall.build`, gắn ở `mcp_hub`) | Luôn hiện (hat_nhan), chỉ đọc, không cho bot khách |
+| Học lúc ghi (PR B) | `AgentRecall.enrich_pending`, `_agent_recall_enrich_soon` | Model nền hạng nhẹ (`learn-agent-recall`), trần 60 lượt/ngày (`JAVIS_AGENT_RECALL_ENRICH_DAILY`), tắt bằng `agent_recall.enrich: false` hoặc `JAVIS_AGENT_RECALL_ENRICH=0` |
+| Biên nhận (PR B) | tab "Đã học" của cộng sự, log `[agent recall]` mỗi lượt | `GET /agents/<slug>/learned` trả thêm `memory` |
+| Javis Core (PR C) | `server/memory_index.py` v6 | Dựng lại tăng dần (5.000 ghi nhớ: thêm một cái từ 2,8 giây xuống 0,3 giây), FTS giữ chữ đã chuẩn hoá, bước từ khoá hỏi FTS thay vì quét LIKE |
+| Tín hiệu dùng (PR C) | bảng `usage` của `agent_recall` | Đoạn được `javis_recall` mở lại được cộng điểm |
+| Cảnh báo Hiến pháp vượt trần (PR C) | tab "Đã học" | Hiện cảnh báo; việc gộp luật làm bằng cách nhờ chính trợ lý trong chat (đi qua `javis_improve`, có hoàn tác) |
+
+Khác với bản thiết kế, nói thẳng:
+- Kho bài học `agent_lessons` chưa vào chỉ mục: nó đã có trần riêng (12 bài mỗi phạm vi), không phải nguồn phình.
+- Javis Core giữ bộ chỉ mục riêng (nâng cấp tại chỗ) thay vì chuyển hẳn sang `agent_recall`: hai thứ khác nhau về đơn vị
+  (file ghi nhớ so với đoạn trong một file lớn), gộp là một việc riêng.
+- Việc nền chạy dưới vai một cộng sự (nhắc hẹn, loop) chưa có Tầng 2 tự động; nó vẫn có Tầng 0, 1 và tool `javis_recall`.
+- Chưa có nút "gộp luật giúp tôi" một chạm; mới có cảnh báo.

@@ -118,11 +118,21 @@ def recall(store: Any, message: str, *, brain: Any, current_sid: str = "") -> Li
 
 
 def strip_block(message: str) -> str:
-    """The message without a recall block in front, for titles and conversation logs."""
+    """The message without recall blocks in front, for titles and conversation logs: this module's block and an
+    assistant's [RECALLED MEMORY] block (agent_recall.py, 2026-11-27), in either order."""
     m = str(message or "")
     head = "[" + BLOCK_TITLE
-    if m.startswith(head):
-        end = m.find("]\n\n")
-        if end >= 0:
-            return m[end + 3:]
+    for _ in range(3):
+        before = m
+        if m.startswith(head):
+            end = m.find("]\n\n")
+            if end >= 0:
+                m = m[end + 3:]
+        try:
+            import agent_recall
+            m = agent_recall.strip_block(m)
+        except ImportError:  # pragma: no cover - the module ships with the server
+            pass
+        if m == before:
+            break
     return m

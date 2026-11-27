@@ -216,6 +216,7 @@ import avatar_upload   # ảnh đại diện tự tải lên của trợ lý và
 import agent_tags   # tag của agent (0.100.0): nhiều tag, nhóm cũ thành một tag
 import cli_autoinstall   # trạng thái agy/grok do container Docker tự cài (0.85.1)
 import agent_assets      # tài liệu & link gắn vào MỘT trợ lý (lưu trong frontmatter agent)
+import agent_recall      # an assistant's memory loaded by search instead of whole (2026-11-27)
 import workflow_chat     # persona_cua_phien: kênh agent:/workflow: đổi cách _do_turn chạy lượt
 import javis_core        # Javis Core (0.185.0): system assistant pinned in every brain
 import main_prompt_rendering  # pure shared prompt blocks; no live reads
@@ -10874,6 +10875,187 @@ def _agent_memory(brain, slug):
     except Exception:
         return ""
 
+
+# ---- Agent recall (2026-11-27, docs/superpowers/specs/2026-11-27-agent-recall-design.md) ----
+# A large assistant memory is no longer preloaded whole: its rules and a map go in the system prompt, the passages that
+# match a message ride at the head of that message, and `javis_recall` searches the rest. Memory under
+# agent_recall.min_chars() is loaded whole as before. Any failure here loads the whole memory (fail-open).
+_AGENT_RECALL = None
+_AGENT_RECALL_NOTE = (
+    "\nYour long-term memory and attached documents are searchable. Only the text above is always loaded; the notes "
+    "that match a message arrive at the top of that message under [RECALLED MEMORY]. To look up anything else, call "
+    "`javis_recall` (op=search, agent=`{slug}`, query=...). Search before you say you do not know or do not remember "
+    "something about this role.\n")
+
+
+def _agent_recall_engine():
+    global _AGENT_RECALL
+    if _AGENT_RECALL is None:
+        _AGENT_RECALL = agent_recall.AgentRecall(cfgmod.STATE_DIR)
+    return _AGENT_RECALL
+
+
+def _agent_recall_scope(brain, slug) -> str:
+    return f"{_brain_key(brain)}::{slug}"
+
+
+def _agent_recall_documents(brain, meta) -> list:
+    """(source id, path) of each attached text document of an assistant, files inside an attached folder included
+    (bounded). Paths go through the brain's serving fence; one that leaves it is skipped."""
+    out = []
+    try:
+        files = agent_assets.doc(meta or {}).get("files") or []
+    except Exception:  # noqa: BLE001
+        return out
+    for item in files:
+        rel = str(item.get("path") or "").strip()
+        if not rel:
+            continue
+        try:
+            target = _safe_serve_path(brain, rel)
+        except Exception:  # noqa: BLE001 - outside the brain or gone
+            continue
+        if rel.endswith("/") and target.is_dir():
+            n = 0
+            for f in sorted(target.rglob("*")):
+                if n >= agent_recall.FOLDER_FILES_MAX:
+                    break
+                if (f.is_file() and f.suffix.lower() in PROJECT_GHIM_DUOI
+                        and not any(part.startswith(".") for part in f.relative_to(target).parts)):
+                    out.append((rel + f.relative_to(target).as_posix(), f))
+                    n += 1
+        elif target.is_file() and target.suffix.lower() in PROJECT_GHIM_DUOI:
+            out.append((rel, target))
+    return out
+
+
+def _agent_recall_prepare(brain, slug, memory_text=None, meta=None):
+    """The assistant's prepared recall (agent_recall.Prepared), or None when recall is off or anything failed."""
+    if not agent_recall.enabled():
+        return None
+    try:
+        if meta is None:
+            meta = _read_md(_agents_dir(brain) / f"{slug}.md")[0]
+        if memory_text is None:
+            memory_text = _agent_memory(brain, slug)
+        return _agent_recall_engine().prepare(_agent_recall_scope(brain, slug), memory_text,
+                                              _agent_recall_documents(brain, meta))
+    except Exception as _e:  # noqa: BLE001 - recall is an optimisation: the whole memory is the safe fallback
+        print(f"[agent recall] {slug}: {type(_e).__name__}: {_e}", file=sys.stderr)
+        return None
+
+
+def _agent_recall_block(brain, slug, query) -> str:
+    """The [RECALLED MEMORY] block for one message to assistant `slug`, followed by a blank line; "" when nothing
+    matches, the memory is small, or anything failed."""
+    prep = _agent_recall_prepare(brain, slug)
+    if prep is None or not prep.indexed:
+        return ""
+    try:
+        block, _hits = _agent_recall_engine().recall(prep, query)
+    except Exception as _e:  # noqa: BLE001
+        print(f"[agent recall] {slug}: {type(_e).__name__}: {_e}", file=sys.stderr)
+        return ""
+    # The receipt of the turn: what was loaded against what a whole preload would have cost.
+    print(f"[agent recall] {slug}: {len(_hits)} passages, {len(block):,} chars recalled, "
+          f"{len(prep.memory_text):,} in the prompt, memory {prep.plan.total_chars:,}", file=sys.stderr)
+    _agent_recall_enrich_soon()
+    return (block + "\n\n") if block else ""
+
+
+def _agent_recall_query(store, conv_sid, message) -> str:
+    """The search text for one message of an assistant chat: the message, plus the owner's previous one when this
+    is a short follow-up. Never raises."""
+    earlier = []
+    try:
+        if store is not None and conv_sid:
+            page = store.get_messages_page(conv_sid, limit=6, with_tools=False) or {}
+            earlier = [chat_recall.strip_block(str(m.get("content") or "")) for m in page.get("messages") or []
+                       if m.get("role") == "user"]
+    except Exception:  # noqa: BLE001
+        earlier = []
+    return agent_recall.query_for_turn(message, earlier)
+
+
+def _agent_recall_status(root, slug) -> dict:
+    """How an assistant's memory reaches its prompt, for the owner's Learned tab. Opening the tab is also a good
+    moment to enrich what is new."""
+    text = _agent_memory(root, slug)
+    out = {"mode": "whole", "chars": len(text), "passages": 0, "enriched": 0, "used": 0, "overflow": 0,
+           "core_max": agent_recall.CORE_MAX}
+    prep = _agent_recall_prepare(root, slug, text)
+    if prep is None or not prep.indexed:
+        return out
+    out.update(_agent_recall_engine().index.stats(prep.scope_key))
+    out["chars"] = len(text)
+    out["mode"] = "docs" if prep.plan.whole else "recall"
+    out["overflow"] = prep.plan.overflow_chars
+    _agent_recall_enrich_soon()
+    return out
+
+
+def _agent_recall_turn_block(store, conv_sid, brain, user_text) -> str:
+    """The [RECALLED MEMORY] block for a dashboard turn when the chat belongs to an assistant, else ""."""
+    persona = workflow_chat.persona_cua_phien(store.get_session(conv_sid) if (store is not None and conv_sid) else None)
+    if not persona or persona[0] != "agent":
+        return ""
+    return _agent_recall_block(brain, persona[1], _agent_recall_query(store, conv_sid, user_text))
+
+
+agent_recall.set_turn_hook(_agent_recall_turn_block)
+
+
+def _agent_recall_tool_host(vault_root, slug):
+    """For the javis_recall hub tool: (engine, Prepared or None) of assistant `slug` in the brain at `vault_root`."""
+    if not (_agents_dir(vault_root) / f"{slug}.md").is_file():
+        return _agent_recall_engine(), None
+    return _agent_recall_engine(), _agent_recall_prepare(vault_root, slug)
+
+
+agent_recall.set_host(_agent_recall_tool_host)
+
+_AGENT_RECALL_ENRICH_TASK = None
+# "learn-..." puts the job on the LIGHT background tier (aux_engine.tier_for_tag): the cheapest model the owner set up.
+_AGENT_RECALL_ENRICH_TAG = "learn-agent-recall"
+
+
+def _agent_recall_enrich_spec():
+    """The background text model for enrichment, or None when it is switched off or not usable now."""
+    if str(os.getenv(agent_recall.ENV_ENRICH, "1")).strip().lower() in ("0", "false", "no", "off"):
+        return None
+    settings = cfgmod.read_settings() or {}
+    if not (settings.get("agent_recall") or {}).get("enrich", True):
+        return None
+    try:
+        spec = aux_engine.read_spec(settings, tag=_AGENT_RECALL_ENRICH_TAG)
+        ok = aux_engine.availability(spec, settings)
+    except Exception:  # noqa: BLE001
+        return None
+    return spec if ok and ok[0] else None
+
+
+def _agent_recall_enrich_soon():
+    """Enrich new passages in the background (write-time enrichment, design section 6): one daemon thread at a time,
+    capped per day, on the brain's light background model. Called from worker threads as well as the loop, so it
+    does not need an event loop. Never blocks or fails a turn."""
+    global _AGENT_RECALL_ENRICH_TASK
+    t = _AGENT_RECALL_ENRICH_TASK
+    if t is not None and t.is_alive():
+        return
+
+    def _run():
+        try:
+            spec = _agent_recall_enrich_spec()
+            if spec is None or not _agent_recall_engine().index.pending_enrichment(1):
+                return
+            _agent_recall_engine().enrich_pending(
+                lambda system, prompt: _improvement_text_call(system, prompt, _AGENT_RECALL_ENRICH_TAG, spec=spec))
+        except Exception as _e:  # noqa: BLE001
+            print(f"[agent recall enrich] {type(_e).__name__}: {_e}", file=sys.stderr)
+    import threading
+    _AGENT_RECALL_ENRICH_TASK = threading.Thread(target=_run, name="agent-recall-enrich", daemon=True)
+    _AGENT_RECALL_ENRICH_TASK.start()
+
 # ---- Agent tự bồi đắp: "model ĐỀ XUẤT, code GHI" (đúng nguyên tắc docs/22-tu-hoc) ----
 # Bản đầu (0.35.3) cho agent tự Edit MEMORY.md, rào bằng lời "chỉ thêm dòng". Rào bằng
 # lời thì model yếu có ngày Write đè cả file, và luật cấm-xoá làm bài học sai nằm vĩnh
@@ -14398,7 +14580,9 @@ async def _run_workflow_step(node, prompt, mk, agent_sysprompt, sink, router=Non
         # agent lưu sẵn đã hết đúng với model vừa đổi. Bỏ đi để _agent_model_provider suy lại
         # từ chính model mới, thay vì ép model Claude chạy qua nhà người dùng chọn lúc trước.
         agent_prov = ""
-    cur_prompt = prompt
+    # 2026-11-27: the passages of the step agent's own memory that match its task (agent_recall.py).
+    _recall = getattr(agent_sysprompt, "recall", None)
+    cur_prompt = ((await asyncio.to_thread(_recall, node.agent, prompt)) if _recall else "") + prompt
     out = ""
     verified = None
     attempt = 0
@@ -14651,6 +14835,10 @@ def _workflow_agent_helpers(brain, tools, mode=None):
         _agent_procedure_block)."""
         ameta, abody = _read_md(_agents_dir(brain) / f"{aslug}.md")
         amem = _agent_memory(brain, aslug)
+        # 2026-11-27: a large memory becomes its rules plus a map (agent_recall.py); the rest is searched per message.
+        _recall = _agent_recall_prepare(brain, aslug, amem, ameta)
+        if _recall is not None:
+            amem = _recall.memory_text
         # Khối bộ nhớ + luật tự bồi đắp chèn VÔ ĐIỀU KIỆN (kể cả khi amem rỗng): điều
         # kiện `if amem` cũ là bẫy con-gà-quả-trứng - agent chưa có ký ức thì không bao
         # giờ được bảo là mình CÓ bộ nhớ, nên không bao giờ tạo được ký ức đầu tiên.
@@ -14662,6 +14850,7 @@ def _workflow_agent_helpers(brain, tools, mode=None):
             f"Skills khả dụng: {', '.join(ameta.get('skills', []) or []) or '(không)'}. Dùng skill khi cần.\n"
             + _agent_assets_block(brain, ameta)
             + f"\n# Bộ nhớ của bạn (file: {mem_path}):\n{amem or '(chưa có ký ức nào)'}\n"
+            + (_AGENT_RECALL_NOTE.replace("{slug}", aslug) if (_recall is not None and _recall.indexed) else "")
             + "\n# Tự bồi đắp lúc dùng: nếu cuối nhiệm vụ rút ra được bài học TÁI DÙNG cho vai này "
               "(cách làm tốt hơn, lỗi cần tránh, ngữ cảnh riêng đã học được), KẾT THÚC câu trả lời "
               "bằng tối đa 2 dòng riêng, mỗi dòng đúng dạng `JAVIS_LESSON: <bài học một câu>`. "
@@ -14692,6 +14881,9 @@ def _workflow_agent_helpers(brain, tools, mode=None):
     # Read by _step_reasoning_kw at the step call sites. An attribute, not a fifth return value: the 4-tuple of
     # _agent_sysprompt is unpacked in a dozen places (chat, team, Kanban) that have their own reasoning rule.
     _agent_sysprompt.own_reasoning = _own_reasoning
+    # 2026-11-27: the [RECALLED MEMORY] block of one agent for one task (agent_recall.py), read by the graph step
+    # runner, which knows the task but not the brain.
+    _agent_sysprompt.recall = lambda aslug, query: _agent_recall_block(brain, aslug, query)
 
     def _log_run(aslug, task, out):
         _log_agent_run(brain, aslug, task, out)
@@ -15338,7 +15530,8 @@ async def _execute_workflow_raw(brain, slug, input="", tools=None, session_id=""
         task_f = task.replace("{{input}}", input or "").replace("{{prev}}", prev or "")
         yield {"type": "step_start", "i": i, "agent": agent_name, "agent_slug": agent_slug, "task": task_f}
 
-        cur_prompt = task_f
+        # 2026-11-27: the passages of the step agent's own memory that match its task (agent_recall.py).
+        cur_prompt = await asyncio.to_thread(_agent_recall_block, brain, agent_slug, task_f) + task_f
         out = ""
         verified = None
         attempt = 0
@@ -23591,6 +23784,17 @@ async def _chat_socket(ws):
                         user_message = chat_recall.block(_hits) + user_message
             except Exception as _e:  # noqa: BLE001 - recall is a bonus, never a reason to fail a turn
                 print(f"[recall] {type(_e).__name__}: {_e}", file=sys.stderr)
+            # 2026-11-27: a chat with an assistant gets the passages of ITS memory that match this message
+            # (agent_recall.py). Same place and same rule as the block above: the engine's message only. Local
+            # imports: tests exec run_turn from its source in a namespace without this module's globals.
+            try:
+                import agent_recall as _agent_recall_mod
+                _rc = await _agent_recall_mod.turn_block(store, conv_sid, brain, user_text)
+                if _rc:
+                    user_message = _rc + user_message
+            except Exception as _e:  # noqa: BLE001
+                import sys as _sys
+                print(f"[agent recall] {type(_e).__name__}: {_e}", file=_sys.stderr)
             _t0_luot = time.time()
             _khoa_luot = luot_dang_chay.bat_dau(f"{WEB_CHAT_PREFIX}{conv_sid}", _brain_root(brain),
                                                 msg_id=user_mid, user_text=user_text)
@@ -29351,6 +29555,10 @@ async def _tg_answer_engine(text, meta, progress, *, chat_id, sess, brain, mcfg,
         _ch_sk = await asyncio.to_thread(_skill_turn_head, brain, _sk_key, text,
                                          _ch_hist, exclude=_plan_loaded_skill(_p8), overlays=kind == "api")
     _text_engine = (_ch_sk + "\n\n" + text) if _ch_sk else text
+    if agent and not _bot_full:
+        # 2026-11-27: the passages of the assistant's own memory that match this message (agent_recall.py).
+        _text_engine = await asyncio.to_thread(
+            _agent_recall_block, brain, agent["slug"], _agent_recall_query(store, conv_sid, text)) + _text_engine
     if kind in ("cli", "oauth"):
         _schedule_registry_discovery_shadow(
             runtime_trace, brain, text,
@@ -33530,6 +33738,17 @@ import team_engine  # noqa: E402
 import team_gate  # noqa: E402
 
 
+def _team_recall_block(root, agent_key, query) -> str:
+    """The [RECALLED MEMORY] block of one team member for one turn (agent_recall.py), "" when none."""
+    try:
+        reg = _resonance_store().agent_by_key(root, agent_key)
+    except Exception:  # noqa: BLE001
+        return ""
+    if not reg or not reg.get("slug"):
+        return ""
+    return _agent_recall_block(root, reg["slug"], query).rstrip()
+
+
 def _team_agent_info(root, agent_key, surface=None):
     """Thành viên theo mã bền: slug hiện tại, tên, lời nhắc hệ thống của agent (vai, bộ nhớ, luật chủ dặn, bài học) và
     model riêng. None khi mã đã nghỉ, file mất hay chưa có sổ danh tính: bộ chạy coi như thành viên đã rời."""
@@ -34883,6 +35102,7 @@ _TEAM_API = team_api.register(app, team_api.TeamApiDeps(
     ceiling=_team_ceiling, projector=_feedback_projector, judge=lambda: _agent_judge(),
     learning=_team_learning,
     contrib_reader=lambda ref: _team_contrib_reader(ref), attach=_team_attach, docs_block=_team_docs_block,
+    recall_block=lambda brain_id, agent_key, query: _team_recall_block(brain_id, agent_key, query),
     describe=_team_describe, mandate_deps=lambda: _MandateDeps(),
     check_command=lambda cmd, cwd: _MandateDeps().run_test(cmd, cwd),
     brain_root=lambda team: Path(_brain_root(team["brain_id"])),
@@ -36384,7 +36604,8 @@ agent_learned.register_routes(app, agent_learned.Deps(
     agent_key=lambda root, slug, reg: _agent_jobs_key(root, slug, register=reg),
     store=lambda create: _pulse_store() or (_resonance_store() if create else None),
     legacy_file=lambda root, slug: _brain_memory_dir(root) / "agents" / slug / "MEMORY.md",
-    refuse=lambda text: project_context.blocked_reason(text)))
+    refuse=lambda text: project_context.blocked_reason(text),
+    memory_status=lambda root, slug: _agent_recall_status(root, slug)))
 
 @app.get("/model/fast-state")
 async def model_fast_state():

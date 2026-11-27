@@ -25,7 +25,10 @@ import sqlite_tune
 # v4 (0.432.1, #934): agents/*/runs/ left out, generic labels ("Vì sao:", "Áp dụng:") no longer make a subject,
 # always_on matches a path segment that starts with the word instead of any substring.
 # v5 (#1743): a subject comes only from a specific "label:" (two or more words), never from a one-word tag or a heading.
-INDEX_SCHEMA_VERSION = "memory-index-v5"
+# v6 (2026-11-27): incremental rebuild (only changed files are re-read and re-chunked), the full-text table holds the
+# normalized text ("đ" as "d", so a query typed without marks matches), and the keyword stage asks the full-text index
+# instead of scanning the whole table with LIKE '%term%'.
+INDEX_SCHEMA_VERSION = "memory-index-v6"
 INDEX_POLICY_VERSION = "memory-retrieval-cascade-v1"
 _WORD_RE = re.compile(r"[^\W_]{2,}", re.UNICODE)
 _WIKI_RE = re.compile(r"\[\[([^\]|#]+)")
@@ -197,6 +200,12 @@ class MemoryIndex:
                 );
                 CREATE INDEX IF NOT EXISTS idx_memory_records_scope
                     ON memory_records(scope,always_on,subject);
+                CREATE TABLE IF NOT EXISTS memory_source_stats(
+                    scope TEXT NOT NULL, source_path TEXT NOT NULL, stat TEXT NOT NULL,
+                    PRIMARY KEY(scope,source_path)
+                );
+                CREATE INDEX IF NOT EXISTS idx_memory_records_content
+                    ON memory_records(scope,content_ref);
                 CREATE TABLE IF NOT EXISTS memory_links(
                     scope TEXT NOT NULL, left_id TEXT NOT NULL, right_id TEXT NOT NULL,
                     relation TEXT NOT NULL, weight REAL NOT NULL,
@@ -357,6 +366,12 @@ class MemoryIndex:
         return memory_dir, files
 
     def rebuild(self, brain: str | Path, force: bool = False) -> dict:
+        """Bring the brain's index in line with its memory files.
+
+        Incremental since v6 (2026-11-27): a file whose size and mtime did not change is not even read, a file whose
+        text did not change keeps its records, and only the records of changed or removed files are replaced. Before,
+        one new memory file re-read and re-chunked EVERY file and rebuilt the whole link graph, so the cost of a turn
+        after a memory write grew with the memory. A new schema version (or `force`) still rebuilds everything."""
         brain = Path(brain).resolve()
         scope = brain_scope(brain)
         _mem_dir, paths = self._source_paths(brain)
@@ -373,37 +388,62 @@ class MemoryIndex:
                     previous["schema_version"] == INDEX_SCHEMA_VERSION):
                 return {"rebuilt": False, "revision": previous["revision"],
                         "source_count": previous["source_count"], "record_count": previous["record_count"]}
-            files = []
-            for relative, path, _mtime_ns, _size in paths:
+            full = bool(force or not previous or previous["schema_version"] != INDEX_SCHEMA_VERSION)
+            known_hash = {} if full else {r["source_path"]: r["source_hash"] for r in db.execute(
+                "SELECT source_path, source_hash FROM memory_sources WHERE scope=?", (scope,))}
+            known_stat = {} if full else {r["source_path"]: r["stat"] for r in db.execute(
+                "SELECT source_path, stat FROM memory_source_stats WHERE scope=?", (scope,))}
+            current = {rel: (path, f"{mtime_ns}:{size}") for rel, path, mtime_ns, size in paths}
+            removed = [rel for rel in known_hash if rel not in current]
+            changed: list[tuple[str, str, str]] = []      # (relative, text, source_hash)
+            same_text: list[tuple[str, str]] = []         # (relative, stat): touched, text unchanged
+            for relative, (path, stat) in current.items():
+                if relative in known_hash and known_stat.get(relative) == stat:
+                    continue
                 try:
                     text = path.read_text(encoding="utf-8", errors="replace")
                 except OSError:
+                    if relative in known_hash:
+                        removed.append(relative)
                     continue
-                files.append((relative, path, text, _sha(text)))
-            all_records = []
-            source_rows = []
-            for relative, _path, text, source_hash in files:
-                records = self._chunks(text, relative, source_hash, scope)
-                all_records.extend(records)
-                source_rows.append((relative, source_hash, len(records)))
-            revision = "memory_" + _sha(_json([
-                (x["record_id"], x["source_hash"]) for x in all_records
-            ]))[:24]
+                source_hash = _sha(text)
+                if relative in known_hash and known_hash[relative] == source_hash:
+                    same_text.append((relative, stat))
+                else:
+                    changed.append((relative, text, source_hash))
+            new_records = []
+            for relative, text, source_hash in changed:
+                new_records.extend(self._chunks(text, relative, source_hash, scope))
             with db:
-                old_ids = [r[0] for r in db.execute(
-                    "SELECT record_id FROM memory_records WHERE scope=?", (scope,)
-                )]
-                if self._fts:
-                    for record_id in old_ids:
-                        db.execute("DELETE FROM memory_records_fts WHERE record_id=?", (record_id,))
-                db.execute("DELETE FROM memory_links WHERE scope=?", (scope,))
-                db.execute("DELETE FROM memory_records WHERE scope=?", (scope,))
-                db.execute("DELETE FROM memory_sources WHERE scope=?", (scope,))
-                for relative, source_hash, count in source_rows:
-                    db.execute("INSERT INTO memory_sources VALUES(?,?,?,?)",
+                if full:
+                    old_ids = [r[0] for r in db.execute(
+                        "SELECT record_id FROM memory_records WHERE scope=?", (scope,))]
+                    if self._fts:
+                        # Rows written before v6 did not share the record's rowid: find them by id, once.
+                        for i in range(0, len(old_ids), 400):
+                            part = old_ids[i:i + 400]
+                            db.execute(f"DELETE FROM memory_records_fts WHERE record_id IN "
+                                       f"({','.join('?' for _ in part)})", part)
+                    self._delete_records(db, scope, old_ids)
+                    db.execute("DELETE FROM memory_links WHERE scope=?", (scope,))
+                    db.execute("DELETE FROM memory_sources WHERE scope=?", (scope,))
+                    db.execute("DELETE FROM memory_source_stats WHERE scope=?", (scope,))
+                else:
+                    for relative in removed + [c[0] for c in changed]:
+                        old_ids = [r[0] for r in db.execute(
+                            "SELECT record_id FROM memory_records WHERE scope=? AND content_ref=?", (scope, relative))]
+                        self._delete_records(db, scope, old_ids)
+                        db.execute("DELETE FROM memory_sources WHERE scope=? AND source_path=?", (scope, relative))
+                        db.execute("DELETE FROM memory_source_stats WHERE scope=? AND source_path=?",
+                                   (scope, relative))
+                for relative, text, source_hash in changed:
+                    count = sum(1 for x in new_records if x["content_ref"] == relative)
+                    db.execute("INSERT OR REPLACE INTO memory_sources VALUES(?,?,?,?)",
                                (scope, relative, source_hash, count))
-                for item in all_records:
-                    db.execute(
+                for relative, stat in same_text + [(c[0], current[c[0]][1]) for c in changed]:
+                    db.execute("INSERT OR REPLACE INTO memory_source_stats VALUES(?,?,?)", (scope, relative, stat))
+                for item in new_records:
+                    cur = db.execute(
                         "INSERT INTO memory_records VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                         (item["record_id"], scope, item["title"], item["content_ref"], item["excerpt"],
                          item["normalized"], _json(item["topics"]), _json(item["entities"]),
@@ -412,48 +452,74 @@ class MemoryIndex:
                          item["always_on"], item["line_start"], item["line_end"]),
                     )
                     if self._fts:
-                        db.execute("INSERT INTO memory_records_fts VALUES(?,?,?,?,?)", (
-                            item["record_id"], item["title"], item["excerpt"],
-                            " ".join(item["topics"]), " ".join(item["entities"]),
+                        # Same rowid as the record, so a delete or a join never scans the full-text table.
+                        db.execute("INSERT INTO memory_records_fts(rowid,record_id,title,excerpt,topics,entities) "
+                                   "VALUES(?,?,?,?,?,?)", (
+                            cur.lastrowid, item["record_id"], _norm(item["title"]), _norm(item["excerpt"]),
+                            " ".join(item["topics"]), _norm(" ".join(item["entities"])),
                         ))
-                # Bounded inverted graph. Avoid O(n²) rebuild when memory grows large;
-                # generic postings are ignored and each record keeps at most 12 neighbors.
-                postings: dict[tuple[str, str], list[str]] = {}
-                by_id = {item["record_id"]: item for item in all_records}
-                for item in all_records:
-                    for entity in {_norm(x) for x in item["entities"] if _norm(x)}:
-                        postings.setdefault(("entity", entity), []).append(item["record_id"])
-                    for topic in set(item["topics"]):
-                        postings.setdefault(("topic", topic), []).append(item["record_id"])
-                for left in all_records:
-                    scores: dict[str, tuple[float, str]] = {}
-                    keys = [("entity", _norm(x)) for x in left["entities"] if _norm(x)]
-                    keys += [("topic", x) for x in set(left["topics"])]
-                    for relation, key in keys:
-                        neighbors = postings.get((relation, key), [])
-                        cap = 200 if relation == "entity" else 80
-                        if len(neighbors) > cap:
-                            continue
-                        increment = 0.75 if relation == "entity" else 0.2
-                        for right_id in neighbors:
-                            if right_id == left["record_id"] or right_id not in by_id:
-                                continue
-                            previous_score, previous_relation = scores.get(right_id, (0.0, relation))
-                            scores[right_id] = (min(1.0, previous_score + increment),
-                                                "entity" if relation == "entity" else previous_relation)
-                    for right_id, (weight, relation) in sorted(
-                            scores.items(), key=lambda pair: (-pair[1][0], pair[0]))[:12]:
-                        db.execute("INSERT OR IGNORE INTO memory_links VALUES(?,?,?,?,?)",
-                                   (scope, left["record_id"], right_id, relation, weight))
+                self._link(db, scope, new_records)
+                rows = db.execute("SELECT record_id, source_hash FROM memory_records WHERE scope=? "
+                                  "ORDER BY content_ref, line_start, record_id", (scope,)).fetchall()
+                revision = "memory_" + _sha(_json([(r[0], r[1]) for r in rows]))[:24]
+                source_count = db.execute("SELECT COUNT(*) FROM memory_sources WHERE scope=?", (scope,)).fetchone()[0]
                 db.execute(
                     "INSERT INTO index_meta VALUES(?,?,?,?,?,?,?) ON CONFLICT(scope) DO UPDATE SET "
                     "schema_version=excluded.schema_version,source_fingerprint=excluded.source_fingerprint,"
                     "revision=excluded.revision,source_count=excluded.source_count,"
                     "record_count=excluded.record_count,rebuilt_at=excluded.rebuilt_at",
-                    (scope, INDEX_SCHEMA_VERSION, fingerprint, revision, len(files), len(all_records), time.time()),
+                    (scope, INDEX_SCHEMA_VERSION, fingerprint, revision, source_count, len(rows), time.time()),
                 )
-            return {"rebuilt": True, "revision": revision, "source_count": len(files),
-                    "record_count": len(all_records)}
+            return {"rebuilt": True, "revision": revision, "source_count": source_count,
+                    "record_count": len(rows), "changed_sources": len(changed), "removed_sources": len(removed),
+                    "full": full}
+
+    def _delete_records(self, db: sqlite3.Connection, scope: str, record_ids: list) -> None:
+        for i in range(0, len(record_ids), 400):
+            part = record_ids[i:i + 400]
+            marks = ",".join("?" for _ in part)
+            if self._fts:
+                db.execute(f"DELETE FROM memory_records_fts WHERE rowid IN (SELECT rowid FROM memory_records "
+                           f"WHERE scope=? AND record_id IN ({marks}))", (scope, *part))
+            db.execute(f"DELETE FROM memory_links WHERE scope=? AND (left_id IN ({marks}) OR right_id IN ({marks}))",
+                       (scope, *part, *part))
+            db.execute(f"DELETE FROM memory_records WHERE scope=? AND record_id IN ({marks})", (scope, *part))
+
+    def _link(self, db: sqlite3.Connection, scope: str, new_records: list) -> None:
+        """Links from each NEW record to the records that share an entity or a topic with it (both directions).
+        Bounded inverted graph: generic postings are ignored and each record keeps at most 12 neighbours."""
+        if not new_records:
+            return
+        all_rows = db.execute("SELECT record_id, topics_json, entities_json FROM memory_records WHERE scope=?",
+                              (scope,)).fetchall()
+        postings: dict[tuple[str, str], list[str]] = {}
+        for row in all_rows:
+            for entity in {_norm(x) for x in json.loads(row["entities_json"] or "[]") if _norm(x)}:
+                postings.setdefault(("entity", entity), []).append(row["record_id"])
+            for topic in set(json.loads(row["topics_json"] or "[]")):
+                postings.setdefault(("topic", topic), []).append(row["record_id"])
+        for left in new_records:
+            scores: dict[str, tuple[float, str]] = {}
+            keys = [("entity", _norm(x)) for x in left["entities"] if _norm(x)]
+            keys += [("topic", x) for x in set(left["topics"])]
+            for relation, key in keys:
+                neighbors = postings.get((relation, key), [])
+                cap = 200 if relation == "entity" else 80
+                if len(neighbors) > cap:
+                    continue
+                increment = 0.75 if relation == "entity" else 0.2
+                for right_id in neighbors:
+                    if right_id == left["record_id"]:
+                        continue
+                    previous_score, previous_relation = scores.get(right_id, (0.0, relation))
+                    scores[right_id] = (min(1.0, previous_score + increment),
+                                        "entity" if relation == "entity" else previous_relation)
+            for right_id, (weight, relation) in sorted(
+                    scores.items(), key=lambda pair: (-pair[1][0], pair[0]))[:12]:
+                db.execute("INSERT OR IGNORE INTO memory_links VALUES(?,?,?,?,?)",
+                           (scope, left["record_id"], right_id, relation, weight))
+                db.execute("INSERT OR IGNORE INTO memory_links VALUES(?,?,?,?,?)",
+                           (scope, right_id, left["record_id"], relation, weight))
 
     @staticmethod
     def _row(row: sqlite3.Row) -> dict:
@@ -504,6 +570,20 @@ class MemoryIndex:
 
             exact_rows = []
             for term in terms[:8]:
+                # v6: the full-text index answers "which records hold a word starting with this term" without the
+                # full scan of LIKE '%term%' (which also matched inside unrelated words).
+                if self._fts:
+                    try:
+                        exact_rows.extend(db.execute(
+                            "SELECT r.* FROM memory_records_fts JOIN memory_records r "
+                            "ON r.rowid=memory_records_fts.rowid "
+                            "WHERE memory_records_fts MATCH ? AND r.scope=? "
+                            "AND memory_records_fts.record_id=r.record_id LIMIT 20",
+                            ('"' + term.replace('"', '') + '"*', scope),
+                        ).fetchall())
+                        continue
+                    except sqlite3.OperationalError:
+                        pass
                 exact_rows.extend(db.execute(
                     "SELECT * FROM memory_records WHERE scope=? AND "
                     "(normalized LIKE ? OR lower(entities_json) LIKE ?) LIMIT 20",
@@ -527,8 +607,9 @@ class MemoryIndex:
                 try:
                     fts_rows = db.execute(
                         "SELECT r.*,bm25(memory_records_fts) AS fts_rank FROM memory_records_fts "
-                        "JOIN memory_records r ON r.record_id=memory_records_fts.record_id "
-                        "WHERE memory_records_fts MATCH ? AND r.scope=? ORDER BY fts_rank LIMIT 20",
+                        "JOIN memory_records r ON r.rowid=memory_records_fts.rowid "
+                        "WHERE memory_records_fts MATCH ? AND r.scope=? AND memory_records_fts.record_id=r.record_id "
+                        "ORDER BY fts_rank LIMIT 20",
                         (match, scope),
                     ).fetchall()
                 except sqlite3.OperationalError:

@@ -1468,7 +1468,8 @@
       try {
         var d = await (await fetch("/agents/" + encodeURIComponent(slug) + "/learned?brain=" +
                                    encodeURIComponent(brain()))).json();
-        out = (d && d.ok) ? { slug: slug, lessons: d.lessons || [] } : { slug: slug, lessons: [], loi: true };
+        out = (d && d.ok) ? { slug: slug, lessons: d.lessons || [], memory: d.memory || null }
+                          : { slug: slug, lessons: [], loi: true };
       } catch (e) { out = { slug: slug, lessons: [], loi: true }; }
       agentHoc = out;
       if (hocDangNap && hocDangNap.p === p) hocDangNap = null;
@@ -1501,6 +1502,25 @@
     }).join("") + pagerHtml(sl);
   }
 
+  /** 2026-11-27: how the assistant's memory reaches its prompt (server/agent_recall.py). Nothing for a small memory,
+   * one line when it is searched as needed, a warning line when the always-loaded rules no longer fit. */
+  function memStripHtml(m) {
+    if (!m || (m.mode !== "recall" && m.mode !== "docs")) return "";
+    var info = window.JavisInfo;
+    var nf = function (x) { return Number(x || 0).toLocaleString(); };
+    var line = m.mode === "recall"
+      ? pdT("ags.mem_recall", { kb: nf(Math.round((m.chars || 0) / 102.4) / 10), n: nf(m.passages) })
+      : pdT("ags.mem_docs", { n: nf(m.passages) });
+    var explain = esc(pdT("ags.mem_info", { core: nf(m.core_max), e: nf(m.enriched), n: nf(m.passages), u: nf(m.used) }));
+    return '<div class="pd-mem">' +
+      '<div class="pd-mem-row">' + ic("search") + '<span class="pd-mem-txt">' + esc(line) + "</span>" +
+        (info ? info.btn(pdT("info.more")) : "") + "</div>" +
+      (info ? info.body(explain) : "") +
+      (m.overflow > 0 ? '<div class="pd-mem-row pd-mem-warn">' + ic("triangle-alert") + "<span>" +
+        esc(pdT("ags.mem_overflow", { x: nf(m.overflow) })) + "</span></div>" : "") +
+      "</div>";
+  }
+
   function paneHocTroLy() {
     var h = hocHienTai();
     if (!h) return '<div class="pd-empty pg-loading">' + esc(pdT("proj.loading")) + "…</div>";
@@ -1511,6 +1531,7 @@
       '<div class="pd-learn-head"><span class="pd-hint">' + esc(pdT("ags.learned_hint")) + "</span>" +
         (info ? info.btn(pdT("info.more")) : "") + "</div>" +
       (info ? info.body(explain) : '<div class="pd-note">' + ic("info") + "<span>" + explain + "</span></div>") +
+      memStripHtml(h.memory) +
       listToolsHtml(findHtml("learned", h.lessons.length, pdT("proj.find_notes")),
         '<button class="pd-add pd-nadd" type="button">' + ic("plus") + " " + esc(pdT("ags.lesson_add")) + "</button>") +
       '<div class="pd-list">' + hocRowsHtml(h) + "</div>" +

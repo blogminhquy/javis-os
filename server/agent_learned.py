@@ -40,6 +40,9 @@ class Deps:
     store: Callable[[bool], Any]                            # (create) -> GoalStore | None
     legacy_file: Callable[[str, str], Path]                 # (root, slug) -> memory/agents/<slug>/MEMORY.md
     refuse: Callable[[str], str]                            # text -> why it is not stored, "" when fine
+    # (root, slug) -> how the assistant's memory reaches its prompt (agent_recall.py, 2026-11-27): {mode: whole |
+    # recall | docs, chars, passages, enriched, used, overflow, core_max}. None: the listing has no `memory` key.
+    memory_status: Optional[Callable[[str, str], dict]] = None
 
 
 def _where(scope: str) -> str:
@@ -56,7 +59,13 @@ def listing(d: Deps, root: str, slug: str) -> dict:
                 "where": _where(r["scope"]), "created_at": r.get("created_at") or 0} for r in rows]
     legacy = [{"id": f"C{i}", "text": t, "source": "legacy", "where": "all", "created_at": 0}
               for i, t in enumerate(memory_chat._legacy_file_lines(d.legacy_file(root, slug)), 1)]
-    return {"lessons": lessons + legacy}
+    out = {"lessons": lessons + legacy}
+    if d.memory_status is not None:
+        try:
+            out["memory"] = d.memory_status(root, slug)
+        except Exception:  # noqa: BLE001 - the status line is a bonus, the lessons are the page
+            pass
+    return out
 
 
 def add(d: Deps, root: str, slug: str, text: str) -> dict:

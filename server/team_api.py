@@ -141,6 +141,8 @@ class TeamApiDeps:
     contrib_reader: Optional[Callable[[str], list]] = None  # result_ref -> pulse_contrib còn hiệu lực (T4, lịch sử dài)
     attach: Optional[Callable[[dict, list], list]] = None  # (team, attachments) -> [{name, path, image}] (0.191.0)
     docs_block: Optional[Callable[[dict], str]] = None    # team -> documents/folder block of member turns (0.191.0)
+    # (brain_id, agent_key, query) -> the member's matching long-term memory (agent_recall.py, 2026-11-27)
+    recall_block: Optional[Callable[[str, str, str], str]] = None
     # (team, files, caption) -> awaitable: pictures among `files` get a pinned text description, read by member turns
     # (team turns are text only). Awaited BEFORE the member turns of the message that carried them (0.192.0).
     describe: Optional[Callable[[dict, list, str], Any]] = None
@@ -279,6 +281,7 @@ class TeamApi:
                 judge=self.deps.judge() if self.deps.judge is not None else None,
                 learning=self.deps.learning() if self.deps.learning is not None else None,
                 contrib_reader=self.deps.contrib_reader, docs_block=self.deps.docs_block,
+                recall_block=self.deps.recall_block,
                 check_command=self.deps.check_command, brain_root=self.deps.brain_root,
                 work_dir=self.deps.work_dir, job_done=self.deps.job_done, skill_block=self.deps.skill_block)
             self._runner.notice_done = notice_done
