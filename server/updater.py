@@ -506,6 +506,113 @@ def poll_health(port, timeout_s=90):
     return False
 
 
+# ─── Why the new version did not start ───
+# 27/11/2026: 0.646.0 died at startup on Python 3.15 (a TypeError in accept_guard). The updater rolled back, the old
+# server's start rotated or appended its log over the failed one, and the screen said only "the new version failed".
+# Nobody could tell why until someone ran the new version by hand. Now the failed start's own output is read BEFORE
+# rolling back: its last lines go into update.log and its error line onto the screen.
+LOG_TAIL_LINES = 40
+_LOG_READ_MAX = 256 * 1024
+_ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+def _server_log_files():
+    """Where the server writes its output: start-javis.vbs, install.sh and javis-autostart.sh use server/javis.log,
+    a nohup restart from here uses the state folder's javis.log (often the same file)."""
+    out, seen = [], set()
+    for p in (ROOT / "server" / "javis.log", us.STATE_DIR / "javis.log"):
+        try:
+            key = os.path.normcase(str(p.resolve()))
+        except OSError:
+            key = str(p)
+        if key not in seen:
+            seen.add(key)
+            out.append(p)
+    return out
+
+
+def mark_server_logs():
+    """Remember where each server log ends right now, so the next start's lines can be told from older ones."""
+    files = {}
+    for p in _server_log_files():
+        try:
+            st = p.stat()
+            files[str(p)] = (st.st_size, st.st_ino)
+        except OSError:
+            files[str(p)] = (0, None)
+    return {"files": files, "since": time.time()}
+
+
+def _read_new_log(mark):
+    """Text written to the server logs since `mark`. A file that was rotated or rewritten (start-javis.vbs moves
+    javis.log aside and starts a new one) is read from its beginning."""
+    parts = []
+    for path, (size, ino) in mark.get("files", {}).items():
+        try:
+            st = os.stat(path)
+            start = size if (st.st_ino == ino and st.st_size >= size) else 0
+            start = max(start, st.st_size - _LOG_READ_MAX)
+            with open(path, "rb") as f:
+                f.seek(start)
+                text = f.read().decode("utf-8", "replace")
+        except OSError:
+            continue
+        if text.strip():
+            parts.append(text)
+    return "\n".join(parts)
+
+
+def _read_journal(since):
+    """A systemd service logs to the journal, not to a file."""
+    name = systemd_service_name()
+    for scope in ([], ["--user"]):
+        try:
+            r = subprocess.run(["journalctl", *scope, "-u", name, "--since", f"@{int(since)}", "--no-pager",
+                                "-o", "cat", "-n", "400"], capture_output=True, text=True, timeout=20,
+                               creationflags=_CAM)
+        except Exception:  # noqa: BLE001 - no journalctl, no journal: nothing to show
+            continue
+        if r.returncode == 0 and (r.stdout or "").strip():
+            return r.stdout
+    return ""
+
+
+def startup_error(text):
+    """The one line that says why a start failed: the exception line of the last traceback, else the last line that
+    reports an error (uvicorn's "ERROR: [Errno 98] ..."). Empty when the output says nothing of the sort."""
+    lines = [_ANSI.sub("", x).rstrip() for x in (text or "").splitlines()]
+    last_tb = max((i for i, x in enumerate(lines) if "Traceback (most recent call last)" in x), default=-1)
+    if last_tb >= 0:
+        for x in lines[last_tb + 1:]:
+            body = re.sub(r"^(ERROR|CRITICAL):\s*", "", x)
+            if body and not body[0].isspace() and not body.startswith("Traceback"):
+                if re.match(r"[A-Za-z_][\w.]*(:|$)", body):
+                    return body.strip()[:300]
+    for x in reversed(lines):
+        if re.search(r"\b(ERROR|CRITICAL|Error|Exception)\b", x) and x.strip():
+            return x.strip()[:300]
+    return ""
+
+
+def record_startup_failure(mode, mark):
+    """Save the failed start's output to update.log and return its error line (empty when nothing was found)."""
+    text = _read_new_log(mark)
+    if mode in ("systemd", "systemd-signal"):
+        text = "\n".join(t for t in (text, _read_journal(mark.get("since", time.time()))) if t.strip())
+    tail = [x.rstrip() for x in text.splitlines() if x.strip()][-LOG_TAIL_LINES:]
+    if not tail:
+        log(_chu("Bản mới không ghi gì ra log lúc khởi động.", "The new version wrote nothing to its log while starting."))
+        return ""
+    log(_chu(f"Log của bản mới lúc khởi động ({len(tail)} dòng cuối):",
+             f"The new version's log while starting (last {len(tail)} lines):"))
+    for x in tail:
+        log("  | " + _ANSI.sub("", x)[:500])
+    cause = startup_error(text)
+    if cause:
+        log(_chu("Lỗi khởi động: ", "Startup error: ") + cause)
+    return cause
+
+
 def _systemd_worker_command(a, service_name, user=False):
     """`user=True`: a unit of the user's own systemd manager, for a service running as a normal user, who may not
     create system units ("Interactive authentication required"). It lives outside the service's cgroup all the same."""
@@ -621,7 +728,7 @@ def main():
 
     target = a.target or None
     us.write_state({"phase": "preparing", "started_at": _now(), "finished_at": None,
-                    "result": None, "error": None, "old_sha": a.old_sha,
+                    "result": None, "error": None, "cause": None, "old_sha": a.old_sha,
                     "old_version": a.old_version, "target_version": target, "stashed": False})
 
     log(f"Chế độ restart: {mode}")
@@ -708,6 +815,7 @@ def main():
 
     us.write_state({"phase": "restarting"})
     log("Khởi động bản mới…")
+    log_mark = mark_server_logs()
     start_server(mode, a.port)
 
     us.write_state({"phase": "health_check"})
@@ -747,11 +855,14 @@ def main():
         return 1
 
     # need_rollback
+    # Read the failed start's output now: the old version's start below rotates or appends to the same log.
+    cause = record_startup_failure(mode, log_mark)
     log("Bản mới KHÔNG lên được → tự lùi về bản cũ…")
-    us.write_state({"phase": "rolling_back"})
+    us.write_state({"phase": "rolling_back", "cause": cause or None})
     if not a.old_sha:
         us.write_state({"phase": "error", "result": "rollback_failed",
-                        "error": _chu("Không có commit cũ để lùi. ", "There is no old commit to roll back to. ")
+                        "error": (_chu(f"Bản mới lỗi ({cause}). ", f"The new version failed ({cause}). ") if cause else "")
+                                 + _chu("Không có commit cũ để lùi. ", "There is no old commit to roll back to. ")
                                  + (_chu(f"Bản sao sửa đổi {stash_oid[:12]} vẫn trong git stash.",
                                          f"The copy of your changes {stash_oid[:12]} is still in git stash.")
                                     if stash_oid else ""), "finished_at": _now()})
@@ -814,8 +925,11 @@ def main():
                             "finished_at": _now()})
             return 1
         us.write_state({"phase": "done", "result": "rolled_back",
-                        "error": _chu("Bản mới lỗi, đã tự quay về bản cũ.",
-                                      "The new version failed, so Javis rolled back to the old one."),
+                        "error": (_chu(f"Bản mới không khởi động được ({cause}), đã tự quay về bản cũ.",
+                                       f"The new version did not start ({cause}), so Javis rolled back to the old one.")
+                                  if cause else
+                                  _chu("Bản mới lỗi, đã tự quay về bản cũ.",
+                                       "The new version failed, so Javis rolled back to the old one.")),
                         "finished_at": _now()})
         return 0
 
@@ -827,8 +941,11 @@ def main():
     if stash_note:
         hong.append(stash_note)
     us.write_state({"phase": "error", "result": "rollback_failed",
-                    "error": (_chu("Bản mới lỗi và bản cũ cũng chưa lên. ",
-                                   "The new version failed and the old one has not come up either. ")
+                    "error": ((_chu(f"Bản mới lỗi ({cause}) và bản cũ cũng chưa lên. ",
+                                    f"The new version failed ({cause}) and the old one has not come up either. ")
+                               if cause else
+                               _chu("Bản mới lỗi và bản cũ cũng chưa lên. ",
+                                    "The new version failed and the old one has not come up either. "))
                               + ("; ".join(hong) if hong else
                                  _chu("Mã nguồn đã lùi đúng và thư viện cài xong, nhưng server vẫn "
                                       "không lên - nhiều khả năng cổng đang bị tiến trình khác giữ.",
