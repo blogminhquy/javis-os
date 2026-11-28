@@ -3876,7 +3876,7 @@ div.cb-quyen > svg { flex: none; margin-top: 2px; }
 .cb-nl-hit { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 8px 12px;
   border: 0; border-top: 1px solid var(--border); background: none; color: var(--text); font: inherit;
   cursor: pointer; text-align: left; }
-.cb-nl-hit:first-child { border-top: 0; }
+.cb-nl-res > :first-child .cb-nl-hit { border-top: 0; }
 .cb-nl-hit:hover, .cb-nl-hit:focus-visible { background: var(--surface-3); outline: none; }
 .cb-nl-av { flex: none; width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center;
   justify-content: center; background: var(--info-wash); color: var(--accent); font-weight: 600; font-size: 15px; }

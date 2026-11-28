@@ -6845,6 +6845,12 @@ async def _reply_lang_to_profile():
 
 
 @app.on_event("startup")
+async def _drop_staff_request_store():
+    """The staff contact was removed on 2026-11-28: its store of customers' questions goes with it (chatbot_store)."""
+    await asyncio.to_thread(chatbot_store.drop_staff_request_store)
+
+
+@app.on_event("startup")
 async def _prime_kept_values():
     """Read once, on a worker thread, what the event loop asks for from its first request on (kept.py): the settings
     signature, the default brain folder, the pack and plugin signatures, the MCP catalog, the hub token, the bot and

@@ -532,6 +532,23 @@ def ap_ngoai_le(cfg: dict, meta: Optional[dict]) -> dict:
     return dict(cfg, muc_quyen=e["muc_quyen"], _ngoai_le=dict(e), _muc_bot=cfg.get("muc_quyen"))
 
 
+def drop_staff_request_store() -> bool:
+    """Delete the store of the removed staff contact feature (`staff_requests.sqlite3`, 2026-11-26 to 2026-11-28). It
+    held customers' questions and staff answers that nothing reads any more, so it goes rather than staying on disk
+    for good. True when a file was removed."""
+    gone = False
+    for suffix in ("", "-wal", "-shm", "-journal"):
+        p = STATE_DIR / f"staff_requests.sqlite3{suffix}"
+        try:
+            p.unlink()
+            gone = True
+        except FileNotFoundError:
+            pass
+        except OSError as e:
+            print(f"[chatbot_store] staff request store not removed: {type(e).__name__}: {e}", flush=True)
+    return gone
+
+
 def clean_bat(v: Any) -> bool:
     """Công tắc bật/tắt gửi từ form ("1", "true", "on", True...)."""
     return v is True or str(v if v is not None else "").strip().lower() in ("1", "true", "yes", "on")

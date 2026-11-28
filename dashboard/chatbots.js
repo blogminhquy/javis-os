@@ -1369,16 +1369,18 @@
       var manyAccounts = tkDangChon().length > 1;
       var emptyText = !tkDangChon().length ? window.t("cb.nl_no_acc")
         : excBusy ? window.t("cb2.pk_dang_tai")
+        // Chats found but every one is already an exception: say so, not "nobody" or "they must message first".
+        : !ds.length && excChats.length ? window.t(excQuery ? "cb.nl_already" : "cb.nl_all_added")
         : !ds.length ? (excQuery ? window.t("cb.nl_none_q", { q: excQuery }) : window.t("cb.nl_none")) : "";
       out.innerHTML = emptyText ? '<div class="cb-nl-empty">' + esc(emptyText) + '</div>' : ds.map(function (c) {
         var name = c.ten || c.id;
         var sub = [manyAccounts ? accountName(c.tk) : "", c.luc ? gioNgan(c.luc) : ""].filter(Boolean).join(" · ");
-        return '<button type="button" class="cb-nl-hit" role="listitem" data-k="' + esc(c.tk + "\n" + c.id) +
+        return '<div role="listitem"><button type="button" class="cb-nl-hit" data-k="' + esc(c.tk + "\n" + c.id) +
           '" aria-label="' + esc(window.t("cb.nl_add_ten", { name: name })) + '">' +
           '<span class="cb-nl-av">' + esc((name.trim()[0] || "?").toUpperCase()) + '</span>' +
           '<span class="cb-nl-who"><span class="cb-nl-name">' + esc(name) + '</span>' +
             (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span>' +
-          '<span class="cb-nl-plus">' + ic("plus") + '</span></button>';
+          '<span class="cb-nl-plus">' + ic("plus") + '</span></button></div>';
       }).join("");
       out.querySelectorAll(".cb-nl-hit").forEach(function (h) {
         h.onclick = function () { addException(h.dataset.k); };
