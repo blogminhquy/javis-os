@@ -601,7 +601,6 @@ def relabel_e2ee() -> dict:
     the chat list's last line. Only the text changes, so it is safe to run again; the mark keeps it to one scan.
 
     Returns {"done_before", "messages", "chats"}. Never raises: called at start-up."""
-    import zalo_e2ee
     out = {"done_before": False, "messages": 0, "chats": 0}
     try:
         with _lock:
@@ -610,30 +609,42 @@ def relabel_e2ee() -> dict:
                 out["done_before"] = True
                 return out
             accounts = "SELECT id FROM channel_accounts WHERE channel='zalo_personal'"
-            text = zalo_e2ee.placeholder()
-            rows = db.execute(
-                "SELECT id, text, metadata_json FROM messages WHERE message_type='text' AND length(text) >= ?"
-                " AND instr(text, ' ') = 0 AND conversation_id IN"
-                f" (SELECT id FROM conversations WHERE channel_account_id IN ({accounts}))",
-                (zalo_e2ee.MIN_LEN,)).fetchall()
-            for r in rows:
-                if zalo_e2ee.is_ciphertext(r["text"]):
-                    meta = dict(_loads(r["metadata_json"], {}) or {}, e2ee=True)
-                    db.execute("UPDATE messages SET text=?, metadata_json=? WHERE id=?", (text, _json(meta), r["id"]))
-                    out["messages"] += 1
-            chats = db.execute(f"SELECT id, last_message FROM conversations WHERE channel_account_id IN ({accounts})"
-                               " AND length(last_message) >= ? AND instr(last_message, ' ') = 0",
-                               (zalo_e2ee.MIN_LEN,)).fetchall()
-            for r in chats:
-                if zalo_e2ee.is_ciphertext(r["last_message"]):
-                    db.execute("UPDATE conversations SET last_message=? WHERE id=?", (text, r["id"]))
-                    out["chats"] += 1
-            db.execute("INSERT OR REPLACE INTO sync_state(key, value, updated_at) VALUES(?,?,?)",
-                       (_E2EE_MARK, _json({"messages": out["messages"], "chats": out["chats"]}), _now()))
-            db.commit()
+            db.execute("BEGIN IMMEDIATE")      # all or nothing: a half-run must not leave the shared connection mid-transaction
+            try:
+                _relabel_e2ee_rows(db, accounts, out)
+                db.execute("INSERT OR REPLACE INTO sync_state(key, value, updated_at) VALUES(?,?,?)",
+                           (_E2EE_MARK, _json({"messages": out["messages"], "chats": out["chats"]}), _now()))
+                db.execute("COMMIT")
+            except Exception:
+                db.execute("ROLLBACK")
+                out["messages"] = out["chats"] = 0
+                raise
     except Exception as e:      # noqa: BLE001 - the inbox works without it; the next start tries again
         print(f"[conversations] relabel_e2ee: {type(e).__name__}: {e}", file=sys.stderr)
     return out
+
+
+def _relabel_e2ee_rows(db: sqlite3.Connection, accounts: str, out: dict) -> None:
+    """The work of `relabel_e2ee`, inside its transaction."""
+    import zalo_e2ee
+    text = zalo_e2ee.placeholder()
+    rows = db.execute(
+        "SELECT id, text, metadata_json FROM messages WHERE message_type='text' AND length(text) >= ?"
+        " AND instr(text, ' ') = 0 AND conversation_id IN"
+        f" (SELECT id FROM conversations WHERE channel_account_id IN ({accounts}))",
+        (zalo_e2ee.MIN_LEN,)).fetchall()
+    for r in rows:
+        if zalo_e2ee.is_ciphertext(r["text"]):
+            meta = dict(_loads(r["metadata_json"], {}) or {}, e2ee=True)
+            db.execute("UPDATE messages SET text=?, metadata_json=? WHERE id=?", (text, _json(meta), r["id"]))
+            out["messages"] += 1
+    chats = db.execute(f"SELECT id, last_message FROM conversations WHERE channel_account_id IN ({accounts})"
+                       " AND length(last_message) >= ? AND instr(last_message, ' ') = 0",
+                       (zalo_e2ee.MIN_LEN,)).fetchall()
+    for r in chats:
+        if zalo_e2ee.is_ciphertext(r["last_message"]):
+            db.execute("UPDATE conversations SET last_message=? WHERE id=?", (text, r["id"]))
+            out["chats"] += 1
 
 
 def cat_nhom_cu(giu: int = GIU_TIN_NHOM) -> dict:

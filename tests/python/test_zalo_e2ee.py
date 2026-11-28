@@ -53,7 +53,7 @@ check("other base64 is not", not zalo_e2ee.is_ciphertext(base64.b64encode(b"hell
 check("a link is not", not zalo_e2ee.is_ciphertext("https://example.com/" + "x" * 80))
 check("a short one is not", not zalo_e2ee.is_ciphertext(REPORTED[:40]))
 check("empty is not", not zalo_e2ee.is_ciphertext("") and not zalo_e2ee.is_ciphertext(None))
-check("the sentence has no long dash", "—" not in zalo_e2ee.placeholder() and "–" not in zalo_e2ee.placeholder())
+check("the sentence has no long dash", "\u2014" not in zalo_e2ee.placeholder() and "\u2013" not in zalo_e2ee.placeholder())
 
 # ============================================================
 # 2. The inbox event
@@ -100,9 +100,29 @@ conversations.ghi_su_kien(dict(ev_ok, external_chat_id="u2", external_message_id
 other = dict(ev_ok, channel="telegram", account_id="tg-1", external_chat_id="t1", external_message_id="t-1",
              text=REPORTED)
 conversations.ghi_su_kien(other)
+# A failure half-way rolls everything back and leaves the shared connection usable (review of #1929).
+real = zalo_e2ee.is_ciphertext
+calls = {"n": 0}
+
+
+def flaky(text):
+    calls["n"] += 1
+    if calls["n"] > 1:
+        raise OSError("disk full")
+    return real(text)
+
+
+zalo_e2ee.is_ciphertext = flaky
+broken = conversations.relabel_e2ee()
+zalo_e2ee.is_ciphertext = real
+db = conversations._conn()
+check("a failed run changes nothing", broken["messages"] == 0 and db.execute(
+    "SELECT text FROM messages WHERE external_message_id='old-1'").fetchone()["text"] == REPORTED)
+check("and leaves no open transaction", not db.in_transaction)
+check("the inbox still writes after it", conversations.ghi_su_kien(
+    dict(ev_ok, external_chat_id="u3", external_message_id="after-1", text="Còn hàng không")).get("ok") is True)
 first = conversations.relabel_e2ee()
 check("one stored message relabelled", first["messages"] == 1 and first["chats"] == 1, first)
-db = conversations._conn()
 row = db.execute("SELECT text, metadata_json FROM messages WHERE external_message_id='old-1'").fetchone()
 check("its text is the sentence", row["text"] == zalo_e2ee.placeholder())
 check("and it is marked", '"e2ee": true' in row["metadata_json"], row["metadata_json"])
