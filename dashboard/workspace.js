@@ -24,14 +24,14 @@
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]; }); }
   function khongDau(s) { return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\u0111/g, "d").replace(/\u0110/g, "D").toLowerCase(); }
   function brain() { try { return window.JavisSessions ? window.JavisSessions.brain() : "brain"; } catch (e) { return "brain"; } }
-  async function api(url, opt) { var r = await fetch(url, opt || (banMoi ? { cache: "no-store" } : undefined)); return r.json(); }
+  async function api(url, opt) { var r = await fetch(url, opt || (wantFresh ? { cache: "no-store" } : undefined)); return r.json(); }
   // 2026-11-28: the list load on Retry asks the server for a NEW copy. fetch-gop.js joins every read of one key to ONE
   // request, so a Retry without it waits behind the very read that hung. The flag is on only while taiDanhSach runs up
   // to its first await, which is when both its reads leave.
-  var banMoi = false;
-  function taiDanhSachMoi() {
-    banMoi = true;
-    try { return taiDanhSach(); } finally { banMoi = false; }
+  var wantFresh = false;
+  function loadListFresh() {
+    wantFresh = true;
+    try { return taiDanhSach(); } finally { wantFresh = false; }
   }
   function fd(o) { var f = new FormData(); Object.keys(o).forEach(function (k) { f.append(k, o[k]); }); return f; }
 
@@ -749,7 +749,7 @@
     S.tabPhai = S.tabCua[S.loai] || S.tabPhai;
     chonTabPhai(S.tabPhai);
     nhoPhienTruoc();
-    taiLanDau(lanDung);
+    loadFirstList(lanDung);
   }
   // 2026-11-28 (owner, screenshot: back on this page after the Teams page, stuck on "Loading the conversation…" and
   // the send button did nothing): send opens only once the list is in AND a chat is open (ready). The list load of a
@@ -758,37 +758,37 @@
   // Now: past LIST_WAIT_MS the error and its Retry show (Retry asks for a FRESH copy, see lamLai); a stale answer on
   // a drawing that still owns the page loads again; a load that lands after a Retry already drew stays out.
   var LIST_WAIT_MS = 16000;
-  var veXongLan = 0;   // the drawing (lanDung) whose list has been drawn and its chat opened
-  function taiLanDau(lanNay, lanThu, fresh) {
-    lanThu = lanThu || 0;
-    var cuaTrang = function () { return active && lanNay === lanDung && veXongLan !== lanNay; };
+  var drawnFor = 0;   // the drawing (lanDung) whose list has been drawn and its chat opened
+  function loadFirstList(lanNay, attempt, fresh) {
+    attempt = attempt || 0;
+    var isCurrent = function () { return active && lanNay === lanDung && drawnFor !== lanNay; };
     var slow;
     var slowCheck = function () {
-      if (!cuaTrang()) return;
+      if (!isCurrent()) return;
       if (reconnecting()) { slow = setTimeout(slowCheck, OPEN_RECHECK_MS); return; }
-      loiDanhSach(t("ws.err_list_slow"));
+      showListError(t("ws.err_list_slow"));
     };
     slow = setTimeout(slowCheck, LIST_WAIT_MS);
-    return (fresh ? taiDanhSachMoi() : taiDanhSach()).then(function (moi) {
+    return (fresh ? loadListFresh() : taiDanhSach()).then(function (moi) {
       clearTimeout(slow);
-      if (!cuaTrang()) return;
+      if (!isCurrent()) return;
       if (moi === false) {
-        if (lanThu < 2) return taiLanDau(lanNay, lanThu + 1, true);
+        if (attempt < 2) return loadFirstList(lanNay, attempt + 1, true);
         throw new Error("list");
       }
-      veXongLan = lanNay;
+      drawnFor = lanNay;
       clearOpenError();
       if (pendingCommand) { var cmd = pendingCommand; pendingCommand = null; selectCommand(cmd); }
       else { chonSan(); veTrai(); chonMacDinh(); }
     }).catch(function () {
       clearTimeout(slow);
-      if (!cuaTrang()) return;
+      if (!isCurrent()) return;
       if (pendingCommand) { pendingCommand.resolve(false); pendingCommand = null; }
-      loiDanhSach(t("ws.err_list"));
+      showListError(t("ws.err_list"));
     });
   }
   // The list error replaces the "Loading…" line (a spinner beside an error reads as "still trying").
-  function loiDanhSach(msg) {
+  function showListError(msg) {
     var el = S.el && S.el.querySelector("#wsIdentity");
     if (el) el.innerHTML = "";
     veLoi(msg);
@@ -1919,10 +1919,10 @@
   // trái không có gì, và không tải lại thứ vừa hỏng. Chủ dự án gặp đúng màn này (15/09).
   async function lamLai() {
     var lanNay = lanDung, moi;
-    try { moi = await taiDanhSachMoi(); } catch (e) { moi = null; }
+    try { moi = await loadListFresh(); } catch (e) { moi = null; }
     if (!active || lanNay !== lanDung) return;
     if (!moi) { veGiua(dangChon()); veLoi(t("ws.err_list")); return; }
-    veXongLan = lanNay;
+    drawnFor = lanNay;
     clearOpenError();
     // A partner asked for from a link (openCommand) while the list hung still opens, not the default one.
     if (pendingCommand) { var cmd = pendingCommand; pendingCommand = null; selectCommand(cmd); return; }

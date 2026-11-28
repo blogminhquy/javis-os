@@ -35,10 +35,10 @@ function fn(name) {
   return WS.slice(m.index, j + 1);
 }
 
-const src = ["taiLanDau", "lamLai", "loiDanhSach"].map(fn);
-check("workspace.js có taiLanDau, lamLai, loiDanhSach", src.every(Boolean));
-check("render() tải danh sách qua taiLanDau (có hạn chờ), không còn chuỗi .then bỏ lặng lẽ",
-  /taiLanDau\(lanDung\)/.test(fn("render")) && !/taiDanhSach\(\)\.then\(function \(moi\) \{ if \(moi === false/.test(WS));
+const src = ["loadFirstList", "lamLai", "showListError"].map(fn);
+check("workspace.js có loadFirstList, lamLai, showListError", src.every(Boolean));
+check("render() tải danh sách qua loadFirstList (có hạn chờ), không còn chuỗi .then bỏ lặng lẽ",
+  /loadFirstList\(lanDung\)/.test(fn("render")) && !/taiDanhSach\(\)\.then\(function \(moi\) \{ if \(moi === false/.test(WS));
 check("có câu lỗi tải lâu ws.err_list_slow (vi + en)",
   typeof VI["ws.err_list_slow"] === "string" && typeof EN["ws.err_list_slow"] === "string"
   && VI["ws.err_list_slow"] !== EN["ws.err_list_slow"]);
@@ -68,15 +68,15 @@ if (src.every(Boolean)) {
     selectCommand() { ctx.draws++; },
     // Mỗi lượt tải trả về một promise do test quyết định khi nào xong.
     taiDanhSach() { return ctx.load(false); },
-    taiDanhSachMoi() { return ctx.load(true); },
+    loadListFresh() { return ctx.load(true); },
     load(fresh) { let res, rej; const p = new Promise((a, b) => { res = a; rej = b; }); ctx.loads.push({ fresh, res, rej }); return p; },
   };
   vm.createContext(ctx);
-  vm.runInContext("var veXongLan = 0;\n" + src.join("\n") + "\nthis.taiLanDau = taiLanDau; this.lamLai = lamLai;", ctx);
+  vm.runInContext("var drawnFor = 0;\n" + src.join("\n") + "\nthis.loadFirstList = loadFirstList; this.lamLai = lamLai;", ctx);
 
   (async () => {
     // 1) Lượt tải treo: quá hạn chờ thì có câu lỗi + Thử lại, không im lặng.
-    ctx.taiLanDau(1);
+    ctx.loadFirstList(1);
     await flush();
     clock.tick(ctx.LIST_WAIT_MS - 1);
     check("chưa tới hạn chờ thì chưa báo lỗi", ctx.errs.length === 0);
@@ -99,7 +99,7 @@ if (src.every(Boolean)) {
 
     // 3) Kết quả cũ (brain đổi giữa chừng) mà trang vẫn là lần dựng này: tải lại, không bỏ lặng lẽ.
     ctx.lanDung = 2; ctx.draws = 0; ctx.loads = []; ctx.errs = []; timers = [];
-    ctx.taiLanDau(2);
+    ctx.loadFirstList(2);
     ctx.loads[0].res(false); await flush(); await flush();
     check("kết quả cũ mà trang vẫn đang mở thì tải lại", ctx.loads.length === 2);
     ctx.loads[1].res(true); await flush(); await flush();
@@ -108,16 +108,16 @@ if (src.every(Boolean)) {
 
     // 4) Trang đã dựng lại (lanDung đổi) hay đã rời trang: lượt cũ im lặng, không vẽ đè, không báo lỗi.
     ctx.draws = 0; ctx.loads = []; ctx.errs = [];
-    ctx.taiLanDau(2); ctx.lanDung = 3;
+    ctx.loadFirstList(2); ctx.lanDung = 3;
     ctx.loads[0].res(true); await flush(); await flush();
     clock.tick(60000);
     check("lần dựng cũ về muộn thì không vẽ, không báo lỗi", ctx.draws === 0 && ctx.errs.length === 0);
-    ctx.lanDung = 4; ctx.active = false; ctx.taiLanDau(4); ctx.loads[1].res(false); await flush(); await flush();
+    ctx.lanDung = 4; ctx.active = false; ctx.loadFirstList(4); ctx.loads[1].res(false); await flush(); await flush();
     check("đã rời trang thì kết quả cũ không kéo tải lại", ctx.loads.length === 2);
 
     // 5) Lỗi mạng thật: câu lỗi danh sách, không im lặng.
     ctx.active = true; ctx.lanDung = 5; ctx.loads = []; ctx.errs = [];
-    ctx.taiLanDau(5); ctx.loads[0].rej(new Error("x")); await flush(); await flush();
+    ctx.loadFirstList(5); ctx.loads[0].rej(new Error("x")); await flush(); await flush();
     check("lỗi mạng thì hiện ws.err_list", ctx.errs.length === 1 && ctx.errs[0] === "ws.err_list");
 
     done();
@@ -125,16 +125,16 @@ if (src.every(Boolean)) {
 } else done();
 
 function done() {
-  // taiDanhSachMoi chạy THẬT taiDanhSach + api với fetch giả: cả hai lượt đọc mang cache: "no-store", lượt thường thì không.
-  const parts = ["taiDanhSach", "taiDanhSachMoi", "api"].map(fn);
-  const ok = parts.every(Boolean) && /var banMoi = false;/.test(WS);
-  check("có taiDanhSachMoi và cờ banMoi", ok);
+  // loadListFresh chạy THẬT taiDanhSach + api với fetch giả: cả hai lượt đọc mang cache: "no-store", lượt thường thì không.
+  const parts = ["taiDanhSach", "loadListFresh", "api"].map(fn);
+  const ok = parts.every(Boolean) && /var wantFresh = false;/.test(WS);
+  check("có loadListFresh và cờ wantFresh", ok);
   if (ok) {
     const seen = [];
     const c = { lanDung: 1, brain: () => "b", seen,
       fetch(url, init) { seen.push({ url, cache: init && init.cache }); return new Promise(() => {}); } };
     vm.createContext(c);
-    vm.runInContext("var banMoi = false;\n" + parts.join("\n") + "\nthis.moi = taiDanhSachMoi; this.thuong = taiDanhSach;", c);
+    vm.runInContext("var wantFresh = false;\n" + parts.join("\n") + "\nthis.moi = loadListFresh; this.thuong = taiDanhSach;", c);
     c.moi();
     check("Thử lại: /agents và /workflows đều xin bản mới (no-store)",
       seen.length === 2 && seen.every((x) => x.cache === "no-store"), JSON.stringify(seen));

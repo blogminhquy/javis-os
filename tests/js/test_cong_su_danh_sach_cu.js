@@ -77,16 +77,16 @@ const traLoi = (ctx, brainPart, agents) => ctx.cho.filter((c) => c.url.indexOf(b
 
   // ---- 4. Hợp đồng với nơi gọi ----
   check("render tăng lanDung mỗi lần dựng", /opening\+\+; lanDung\+\+;/.test(WS));
-  // 28/11/2026: nơi gọi lúc dựng trang nay là taiLanDau (có hạn chờ, tải lại khi kết quả cũ mà trang vẫn là lần
+  // 28/11/2026: nơi gọi lúc dựng trang nay là loadFirstList (có hạn chờ, tải lại khi kết quả cũ mà trang vẫn là lần
   // dựng này). Hợp đồng giữ nguyên: kết quả và lỗi của LẦN DỰNG CŨ bị bỏ qua. Hành vi chạy thật ở
   // tests/js/test_ws_tai_danh_sach_treo_1128.js; ở đây khoá đúng câu canh gác.
-  const iLan = WS.indexOf("function taiLanDau(");
-  const lan = iLan >= 0 ? WS.slice(iLan, WS.indexOf("function loiDanhSach(", iLan)) : "";
-  const canh = /var cuaTrang = function \(\) \{ return active && lanNay === lanDung/.test(lan);
+  const iLan = WS.indexOf("function loadFirstList(");
+  const lan = iLan >= 0 ? WS.slice(iLan, WS.indexOf("function showListError(", iLan)) : "";
+  const canh = /var isCurrent = function \(\) \{ return active && lanNay === lanDung/.test(lan);
   check("nơi gọi lúc dựng trang bỏ qua kết quả cũ",
-    canh && /\.then\(function \(moi\) \{\s*clearTimeout\(slow\);\s*if \(!cuaTrang\(\)\) return;/.test(lan));
+    canh && /\.then\(function \(moi\) \{\s*clearTimeout\(slow\);\s*if \(!isCurrent\(\)\) return;/.test(lan));
   check("lỗi của lượt cũ không vẽ đè lên trang mới",
-    canh && /\.catch\(function \(\) \{\s*clearTimeout\(slow\);\s*if \(!cuaTrang\(\)\) return;/.test(lan));
+    canh && /\.catch\(function \(\) \{\s*clearTimeout\(slow\);\s*if \(!isCurrent\(\)\) return;/.test(lan));
 
   if (fails.length) { console.log("\nĐỎ " + fails.length + " mục: " + fails.join(", ")); process.exit(1); }
   console.log("\nTất cả xanh.");
