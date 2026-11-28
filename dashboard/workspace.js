@@ -24,7 +24,15 @@
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]; }); }
   function khongDau(s) { return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\u0111/g, "d").replace(/\u0110/g, "D").toLowerCase(); }
   function brain() { try { return window.JavisSessions ? window.JavisSessions.brain() : "brain"; } catch (e) { return "brain"; } }
-  async function api(url, opt) { var r = await fetch(url, opt); return r.json(); }
+  async function api(url, opt) { var r = await fetch(url, opt || (banMoi ? { cache: "no-store" } : undefined)); return r.json(); }
+  // 2026-11-28: the list load on Retry asks the server for a NEW copy. fetch-gop.js joins every read of one key to ONE
+  // request, so a Retry without it waits behind the very read that hung. The flag is on only while taiDanhSach runs up
+  // to its first await, which is when both its reads leave.
+  var banMoi = false;
+  function taiDanhSachMoi() {
+    banMoi = true;
+    try { return taiDanhSach(); } finally { banMoi = false; }
+  }
   function fd(o) { var f = new FormData(); Object.keys(o).forEach(function (k) { f.append(k, o[k]); }); return f; }
 
   function avatar(a, size, state) { return window.JavisAvatar ? window.JavisAvatar.html(a, size, state) : ic("bot"); }
@@ -672,10 +680,15 @@
             'aria-label="' + esc(t("ws.resize_panel")) + '" title="' + esc(t("ws.resize_hint")) + '"></div>' +
           // Hai tab của cột phải: Cài đặt | Thư mục. Dùng lại đúng lớp .cside-tabs/.cside-pane
           // của cột trái trang Trò chuyện - cùng một kiểu tab, không đẻ bộ lớp thứ hai.
+          // 2026-11-28 (owner): on a narrow screen a tab that is not chosen shows only its icon (console.css), so the
+          // label sits in a span that CSS can hide, and the name stays in aria-label and title.
           '<div class="cside-tabs ws-rtabs">' +
-            '<button type="button" class="cside-tab" data-rtab="lichsu">' + ic("history") + ' ' + esc(t("ws.tab_history")) + '</button>' +
-            '<button type="button" class="cside-tab" data-rtab="viec">' + ic("list-todo") + ' ' + esc(t("ws.tab_jobs")) + '</button>' +
-            '<button type="button" class="cside-tab" data-rtab="cai">' + ic("settings") + ' ' + esc(t("ws.tab_settings")) + '</button>' +
+            '<button type="button" class="cside-tab" data-rtab="lichsu" title="' + esc(t("ws.tab_history")) + '" aria-label="' + esc(t("ws.tab_history")) + '">' +
+              ic("history") + ' <span class="ws-rtab-lbl">' + esc(t("ws.tab_history")) + '</span></button>' +
+            '<button type="button" class="cside-tab" data-rtab="viec" title="' + esc(t("ws.tab_jobs")) + '" aria-label="' + esc(t("ws.tab_jobs")) + '">' +
+              ic("list-todo") + ' <span class="ws-rtab-lbl">' + esc(t("ws.tab_jobs")) + '</span></button>' +
+            '<button type="button" class="cside-tab" data-rtab="cai" title="' + esc(t("ws.tab_settings")) + '" aria-label="' + esc(t("ws.tab_settings")) + '">' +
+              ic("settings") + ' <span class="ws-rtab-lbl">' + esc(t("ws.tab_settings")) + '</span></button>' +
           '</div>' +
           '<div class="cside-pane ws-rpane" data-rpane="cai" id="wsRightSet"></div>' +
           '<div class="cside-pane ws-rpane" data-rpane="lichsu" id="wsRightHistory"></div>' +
@@ -704,7 +717,6 @@
     };
     el.querySelector("#wsStore").onclick = function () { nhom("packs", function () { if (window.JavisPacks && window.JavisPacks.moKho) window.JavisPacks.moKho(S.loai, "workspace", t("page.workspace.label")); }); };
     el.querySelector("#wsNewChat").onclick = function () { var x = dangChon(); if (x) moPhien(x, true); };
-    bindHeaderNewChat();
     var page = el.querySelector("#wsPage");
     el.querySelector("#wsLeftBtn").onclick = function () { page.classList.toggle("left-open"); };
     el.querySelector("#wsRightBtn").onclick = function () { datPhai(!phaiDangHien()); };
@@ -737,8 +749,49 @@
     S.tabPhai = S.tabCua[S.loai] || S.tabPhai;
     chonTabPhai(S.tabPhai);
     nhoPhienTruoc();
-    var lanNay = lanDung;
-    taiDanhSach().then(function (moi) { if (moi === false || lanNay !== lanDung) return; if (pendingCommand) { var cmd = pendingCommand; pendingCommand = null; selectCommand(cmd); } else { chonSan(); veTrai(); chonMacDinh(); } }).catch(function () { if (lanNay !== lanDung) return; if (pendingCommand) { pendingCommand.resolve(false); pendingCommand = null; } veLoi(t("ws.err_list")); });
+    taiLanDau(lanDung);
+  }
+  // 2026-11-28 (owner, screenshot: back on this page after the Teams page, stuck on "Loading the conversation…" and
+  // the send button did nothing): send opens only once the list is in AND a chat is open (ready). The list load of a
+  // drawing had no time limit and a stale answer (the brain changed mid-load) was dropped without a word, so a read
+  // that never came back left the page locked for good while app.js skipped every send (canSend() false).
+  // Now: past LIST_WAIT_MS the error and its Retry show (Retry asks for a FRESH copy, see lamLai); a stale answer on
+  // a drawing that still owns the page loads again; a load that lands after a Retry already drew stays out.
+  var LIST_WAIT_MS = 16000;
+  var veXongLan = 0;   // the drawing (lanDung) whose list has been drawn and its chat opened
+  function taiLanDau(lanNay, lanThu, fresh) {
+    lanThu = lanThu || 0;
+    var cuaTrang = function () { return active && lanNay === lanDung && veXongLan !== lanNay; };
+    var slow;
+    var slowCheck = function () {
+      if (!cuaTrang()) return;
+      if (reconnecting()) { slow = setTimeout(slowCheck, OPEN_RECHECK_MS); return; }
+      loiDanhSach(t("ws.err_list_slow"));
+    };
+    slow = setTimeout(slowCheck, LIST_WAIT_MS);
+    return (fresh ? taiDanhSachMoi() : taiDanhSach()).then(function (moi) {
+      clearTimeout(slow);
+      if (!cuaTrang()) return;
+      if (moi === false) {
+        if (lanThu < 2) return taiLanDau(lanNay, lanThu + 1, true);
+        throw new Error("list");
+      }
+      veXongLan = lanNay;
+      clearOpenError();
+      if (pendingCommand) { var cmd = pendingCommand; pendingCommand = null; selectCommand(cmd); }
+      else { chonSan(); veTrai(); chonMacDinh(); }
+    }).catch(function () {
+      clearTimeout(slow);
+      if (!cuaTrang()) return;
+      if (pendingCommand) { pendingCommand.resolve(false); pendingCommand = null; }
+      loiDanhSach(t("ws.err_list"));
+    });
+  }
+  // The list error replaces the "Loading…" line (a spinner beside an error reads as "still trying").
+  function loiDanhSach(msg) {
+    var el = S.el && S.el.querySelector("#wsIdentity");
+    if (el) el.innerHTML = "";
+    veLoi(msg);
   }
   async function selectCommand(cmd) {
     S.loai = cmd.kind; S.chon[cmd.kind] = cmd.slug; S.q = ""; S.nhom = "";
@@ -1086,25 +1139,6 @@
     if (!active) return;
     baoKetQuaTag(r, g.ten);
     veTrai(); veGiua(dangChon());
-  }
-
-  // 2026-11-26 (owner): on a phone the header already has a + (#newChatBtn, mobile-chat.js), so the bar's own
-  // "New conversation" button is hidden there (console.css). That + only clicks the hidden #resetBtn, which opens
-  // nothing on this page, so while this page is showing it starts a new conversation with the chosen assistant or
-  // workflow instead. Bound once, in the capture phase, and inert on every other page.
-  var _headerNewChatBound = false;
-  function bindHeaderNewChat() {
-    if (_headerNewChatBound || typeof document === "undefined") return;
-    _headerNewChatBound = true;
-    document.addEventListener("click", function (e) {
-      if (!active || !S.el || !S.el.isConnected) return;
-      var headerBtn = e.target && e.target.closest ? e.target.closest("#newChatBtn") : null;
-      if (!headerBtn) return;
-      var barBtn = S.el.querySelector("#wsNewChat");
-      if (!barBtn) return;
-      e.preventDefault(); e.stopPropagation();
-      if (ready && dangChon()) barBtn.click();
-    }, true);
   }
 
   // 2026-11-16 (owner): an assistant's drawer has a Learned tab next to its documents, so the button says both. A
@@ -1884,8 +1918,14 @@
   // cũ chỉ gọi moPhien(null): nó xoá câu lỗi, thay bằng lời mời chọn một cộng sự ở một cột
   // trái không có gì, và không tải lại thứ vừa hỏng. Chủ dự án gặp đúng màn này (15/09).
   async function lamLai() {
-    try { await taiDanhSach(); } catch (e) { if (active) { veGiua(dangChon()); veLoi(t("ws.err_list")); } return; }
-    if (!active) return;
+    var lanNay = lanDung, moi;
+    try { moi = await taiDanhSachMoi(); } catch (e) { moi = null; }
+    if (!active || lanNay !== lanDung) return;
+    if (!moi) { veGiua(dangChon()); veLoi(t("ws.err_list")); return; }
+    veXongLan = lanNay;
+    clearOpenError();
+    // A partner asked for from a link (openCommand) while the list hung still opens, not the default one.
+    if (pendingCommand) { var cmd = pendingCommand; pendingCommand = null; selectCommand(cmd); return; }
     chonSan(); veTrai(); chonMacDinh();
   }
   // `nhac` = câu thay cho lời mời chọn mục, dùng khi danh sách rỗng (chưa có gì để chọn cả).

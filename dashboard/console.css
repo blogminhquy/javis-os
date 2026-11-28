@@ -1017,8 +1017,8 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 /* ============================================
    RESPONSIVE - điện thoại: rail → thanh đáy
    ============================================ */
-/* Hai nút chỉ hiện ở mobile (desktop ẩn) */
-.nav-toggle-btn, .new-chat-btn { display: none; }
+/* Nút menu chỉ hiện ở mobile (desktop ẩn) */
+.nav-toggle-btn { display: none; }
 
 @media (max-width: 860px) {
   :root {
@@ -1026,22 +1026,22 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
     --topbar-h: calc(46px + env(safe-area-inset-top, 0px));
   }   /* header thấp hơn trên mobile nhưng vẫn chừa tai thỏ khi chạy full-screen */
 
-  /* Phone header: menu, bell and the + button only (the model chip stays in the composer since 2026-11-09). */
-  .nav-toggle-btn, .new-chat-btn { display: inline-flex; }
-  /* Header CỐ ĐỊNH trên cùng: luôn thấy nút menu, chuông, nút thêm ở mọi trang, không bị cuộn trôi mất. */
+  /* Phone header: the menu on the left and the bell on the right, nothing else (owner 2026-11-28 dropped the + for a
+     new conversation; the model chip stays in the composer since 2026-11-09). */
+  .nav-toggle-btn { display: inline-flex; }
+  /* Header CỐ ĐỊNH trên cùng: luôn thấy nút menu và chuông ở mọi trang, không bị cuộn trôi mất. */
   .hud-top { position: fixed; top: 0; left: 0; right: 0; height: 46px; z-index: 55;
     background: var(--bg2); border-bottom: 1px solid var(--border);
     display: flex; align-items: center; gap: 6px; padding: 0 8px; }
-  .hud-top-left, .hud-top-right { display: none; }    /* rỗng ở mobile: nút menu, chuông, nút thêm là con trực tiếp header */
+  .hud-top-left, .hud-top-right { display: none; }    /* rỗng ở mobile: nút menu và chuông là con trực tiếp header */
   .hud-top .brand, .hud-top .navbar-brain,
   .hud-top #themeToggle, .hud-top #soundToggle, .hud-top #studioOpenBtn,
   .hud-top #settingsBtn, .hud-top #ttsToggle, .hud-top #resetBtn { display: none; }
   .hud-center-title { display: none; }                /* mobile: ẩn tên workspace + ngày */
-  /* 2026-11-09 (owner): the model chip left the header for the composer, next to the Effort chip as on a computer. The
-     header centre is empty now, so the + button pushes itself to the right edge. */
-  .hud-top .new-chat-btn { margin-left: auto; }
+  /* The header centre is empty (the model chip lives in the composer since 2026-11-09), so the bell pushes itself to
+     the right edge (owner 2026-11-28). */
   .hud-top .notification-trigger {
-    flex: 0 0 34px; width: 34px; min-width: 34px; height: 34px; padding: 0;
+    margin-left: auto; flex: 0 0 34px; width: 34px; min-width: 34px; height: 34px; padding: 0;
   }
   .hud-top .notification-trigger-label { display: none; }
   .hud-top .notification-badge {
@@ -2547,10 +2547,10 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ws-id .agent-avatar { flex:none; }
 @media (max-width:1200px) { .ws-right { width:310px; } }
 /* Hàng nút đứng trước tiêu đề trong DOM; icon nhỏ và tên luôn cùng một dòng. */
-/* 2026-11-26 (owner: "có nút cộng là hội thoại mới rồi... chỉ cần hiện cái ghim"): wherever the phone header shows
-   its + (same 860px breakpoint as .new-chat-btn above), the bar drops its own "New conversation" button and the
+/* 2026-11-26 (owner: "chỉ cần hiện cái ghim"): on a phone the bar drops its own "New conversation" button and the
    documents button shrinks to the paperclip, so the bar is one row: list toggle, paperclip, panel toggle at the right
-   edge. workspace.js points the header + at this page's new conversation while the page is open. */
+   edge. Since 2026-11-28 the header has no + either: a new conversation is the "＋ Hội thoại mới" at the top of the
+   conversation list that the right panel toggle opens. */
 @media (max-width:860px) {
   .ws-bar { flex-wrap:nowrap; gap:6px; }
   .ws-bar #wsNewChat { display:none; }
@@ -2570,9 +2570,18 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ws-run-avatars { display:inline-flex; flex:none; }
 .ws-run-avatars .agent-avatar + .agent-avatar { margin-left:-7px; }
 .ws-panel-close { display:none; }
-/* Cột phải nay là flex dọc (tabs + khung nội dung) nên float/sticky không còn tác dụng:
-   nút đóng là một item của cột, đẩy về mép phải bằng align-self. */
-@media (max-width:1060px) { .ws-panel-close { display:flex; align-self:flex-end; flex:none; } }
+/* 2026-11-28 (owner, phone screenshot: "nút X bị lệch lên trên, thiếu icon"): where the right column is a drawer, the
+   close button used to be its own row above the tabs. It is now pinned to the top right corner at the tabs' height, so
+   tabs and X read as one row. The tabs get their icons back, and a tab that is not chosen shows only its icon (name in
+   its tooltip), so three tabs plus X fit on a 300px drawer without cutting a label. */
+@media (max-width:1060px) {
+  .ws-right > .ws-panel-close { display:flex; position:absolute; top:20px; right:18px; z-index:1;
+    width:34px; height:34px; padding:0; align-items:center; justify-content:center; }
+  .ws-rtabs { padding-right:44px; }
+  .ws-rtabs .cside-tab { flex:none; min-height:34px; padding:7px 10px; }
+  .ws-rtabs .cside-tab svg { display:block; width:16px; height:16px; }
+  .ws-rtabs .cside-tab:not(.active) .ws-rtab-lbl { display:none; }
+}
 .agent-avatar[data-state="listening"] .aa-eyes { transform:scaleY(1.2); }
 
 /* ---- Trang Hội thoại (hộp thư khách của Chatbot V2) - conversations.js ---------------------

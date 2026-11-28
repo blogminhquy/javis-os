@@ -76,8 +76,9 @@ run({ host, sid: "s1", cache: { sid: "s1", pid: "", title: "A" } });
 check("same title does not rebuild the button", host._btn === before);
 
 // Both pages carry the slot, and the chip draw also draws the title.
-check("Chat page has the title slot after the collapse button",
-  /id="cpMinBtn"[\s\S]{0,700}cp-conv-host/.test(CONSOLE));
+// 2026-11-28: the collapse button left the bar, so the title slot now sits right after the drawer button.
+check("Chat page has the title slot in its bar",
+  /<div class="chatpage-bar">[\s\S]{0,1000}cp-conv-host/.test(CONSOLE));
 check("Code page has the title slot", CODING.includes('class="cp-conv-host"'));
 check("renderProjChip draws the title", /async function renderProjChip\(\) \{[\s\S]{0,300}renderTitle\(\)/.test(SRC));
 check("renaming clears the cached title", /async function renSession[\s\S]{0,500}quenPhienProj\(\);/.test(SRC));

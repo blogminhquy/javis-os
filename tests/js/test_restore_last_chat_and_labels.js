@@ -57,7 +57,6 @@ for (const [src, marker, key] of [
   [side, 'class="cside-tab" data-tab="files"', "sess.tab_files"],
   [side, 'class="cside-new"', "sess.new_chat"],
   [side, 'class="cside-search"', "sess.search_ph"],
-  [ui, 'class="cp-ico-btn cp-min"', "cs.cp_min"],
 ]) {
   const start = src.indexOf(marker);
   assert.ok(start >= 0, "missing dynamic control " + marker);

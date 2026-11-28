@@ -43,11 +43,11 @@ check("the per-session pin stays visible: a pin icon on the chip, in words for s
 check("pinning itself is untouched: picking a model still pins it to the open session",
   /sessionPin = \{ provider: prov, model: model \};/.test(mp) && /await pinToSession\(sid, prov, model\);/.test(mp));
 // Owner, 2026-11-09: on a phone too the chip sits in the composer next to the Effort chip, as on a computer (0.182.0 to
-// then it was in the top bar). mobile-chat.js no longer moves it, the header keeps + on the right, and the picker, still a
-// child of the card, is never wider than the screen.
+// then it was in the top bar). mobile-chat.js no longer moves it, the header keeps the bell on the right (the + left on
+// 2026-11-28), and the picker, still a child of the card, is never wider than the screen.
 check("phone: the chip stays in the composer next to Effort, nothing moves it into the header",
   !/getElementById\("mb(Open|Pop)"\)|insertBefore\(mb(Open|Pop)/.test(mobile) && !/#mbOpen|#mbPop/.test(ccss)
-  && ccss.includes(".hud-top .new-chat-btn { margin-left: auto; }")
+  && /\.hud-top \.notification-trigger \{\s*margin-left: auto;/.test(ccss)
   && css.includes(".hud-voice .mb-pop { width: min(340px, calc(100vw - 32px)); }"));
 check("long model names end in ...", /#mbModelTxt \{ min-width: 0; overflow: hidden; text-overflow: ellipsis; \}/.test(css)
   && !css.includes("#cpChips .mb-chip { max-width: 42vw; }"));
