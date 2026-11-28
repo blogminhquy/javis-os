@@ -83,14 +83,22 @@ Mỗi card provider hiển thị trạng thái **● Đã kết nối** hoặc *
 
 Đây là engine mặc định. Nó dùng được toàn bộ công cụ, skill và bộ nhớ, cộng thêm chạy lệnh máy. Không bắt buộc: nếu bạn không có gói Claude thì bỏ qua mục này và đi thẳng xuống mục B (ChatGPT) hoặc C (API key) - Javis chạy đủ chức năng như nhau, chỉ thiếu phần lệnh máy khi đi bằng API key.
 
-Từ 22/11/2026 thẻ Claude Code chỉ có một đường vào: **token dài hạn** của gói Claude. Kiểu đăng nhập cũ (`claude auth login`) có thể hết hạn giữa chừng, báo đăng nhập đã hết thời hạn và không gia hạn được, làm bot và việc nền dừng lại. Token thì không bao giờ bị đăng xuất giữa chừng.
+Từ 28/11/2026 bấm **Kết nối Claude** là Javis làm **2 bước liền nhau**:
+
+- **Bước 1: đăng nhập claude.ai đầy đủ** (`claude auth login`). Phiên này mang theo Gmail, Lịch, Drive... bạn đã thêm trên claude.ai, và Claude Code chạy bằng nó.
+- **Bước 2: token dài hạn làm dự phòng** (`claude setup-token`). Phiên đăng nhập có thể hết hạn giữa chừng, báo đã hết thời hạn và không gia hạn được. Khi đó Javis tự chuyển sang token, bot và việc nền không dừng.
+
+Không gộp được thành một lần đăng nhập: Anthropic chỉ cho token dài hạn quyền chat, không mang được kết nối claude.ai. Sang bước 2 thì claude.ai đã đăng nhập sẵn, chỉ cần bấm **Authorize** rồi dán mã. Trên **Mac** (phiên đăng nhập nằm trong Keychain, Javis không đọc được) và **Windows** (không tự chạy được `setup-token`), thẻ vẫn chỉ có một đường vào là token, như trước.
 
 1. Vào **Models**, tìm card **Claude Code** (chưa kết nối thì nó nằm sau nút **＋ Kết nối thêm nhà cung cấp** ở cuối trang).
 2. Nếu chưa kết nối, card báo **○ Chưa đăng nhập** và có ô **Tên tài khoản** cùng các nút **Kết nối Claude**, **Dán token** và **↻ Kiểm tra lại**. Nếu máy chạy Javis chưa có lệnh `claude`, card báo **○ Chưa cài Claude Code**, hiện một khung hướng dẫn cài (bản Docker: cập nhật Javis; bản cài tay: một lệnh để chép) và chỉ có nút **↻ Kiểm tra lại**.
-3. Gõ một cái tên vào ô **Tên tài khoản** (ví dụ "Gmail công việc") cho khỏi lẫn về sau, rồi bấm **Kết nối Claude**. Javis tự chạy lệnh `claude setup-token` và hiện dòng "**1)** Mở link này, đăng nhập claude.ai để tạo token:" kèm đường link.
+3. Gõ một cái tên vào ô **Tên tài khoản** (ví dụ "Gmail công việc") cho khỏi lẫn về sau, rồi bấm **Kết nối Claude**. Thẻ hiện "**Bước 1/2: đăng nhập claude.ai**" kèm đường link.
 4. Mở link đó và đăng nhập tài khoản claude.ai của bạn.
-5. Nếu trang hiện **một mã code**, dán mã vào ô "Dán mã vào đây" rồi bấm **Xác nhận mã**. Trên máy có trình duyệt, trang có thể không hiện mã nào: cứ quay lại Javis, thẻ tự xong sau vài giây. Mã bị từ chối thì bấm **Lấy link mới** để làm lại.
-6. Khi xong, Javis lưu token (đã mã hoá) và Claude Code chạy bằng token đó. Card đổi sang **● Đã kết nối**, bên dưới có dòng **Token ••••** kèm bốn ký tự cuối của token.
+5. Nếu trang hiện **một mã code**, dán mã vào ô "Dán mã vào đây" rồi bấm **Xác nhận mã**. Trên máy có trình duyệt, trang có thể không hiện mã nào: cứ quay lại Javis, thẻ tự chuyển sau vài giây. Mã bị từ chối thì bấm **Lấy link mới** để làm lại.
+6. Thẻ tự sang "**Bước 2/2: token dự phòng, dùng 1 năm**" với một link mới. Mở link, bấm **Authorize**, dán mã như bước 5. Muốn làm sau thì bấm **Để sau**.
+7. Khi xong, Javis lưu token (đã mã hoá). Card đổi sang **● Đã kết nối**, bên dưới có dòng **Token ••••** kèm bốn ký tự cuối của token và dòng **Kết nối claude.ai đang bật**.
+
+Bấm **Để sau** ở bước 2 thì Claude Code vẫn chạy, nhưng thẻ hiện dòng vàng **Chưa có token dự phòng** kèm nút **Lấy token dự phòng**, và sau chừng 15 đến 25 phút Javis nhắc một lần trong chuông. Trên Mac và Windows các bước 3 đến 7 chỉ có phần token: thẻ hiện "**1)** Mở link này, đăng nhập claude.ai để tạo token:" (Mac) hoặc chỉ có nút **Dán token** (Windows).
 
 Khi đã kết nối bằng token, card có các nút **Lấy token mới**, **Dán token** và **Ngắt**. Bấm **Ngắt** là ngắt kết nối và Javis quên luôn token. Nút **↻ Kiểm tra lại** chỉ có ở trạng thái chưa kết nối, dùng khi bạn vừa làm gì đó bằng terminal và muốn Javis nhìn lại.
 
@@ -506,7 +514,8 @@ Từ 0.42.1 trở về trước có lỗi ở đúng chỗ này: chỉ mạch c�
 | **＋ Kết nối thêm nhà cung cấp (N)** | Cuối trang | Hiện N nhà chưa kết nối để đăng nhập / dán key |
 | **○ Chưa đăng nhập** | Card Claude Code | Claude Code chưa được kết nối trên máy này |
 | **○ Chưa cài Claude Code** | Card Claude Code | Máy chạy Javis chưa có lệnh `claude`, làm theo khung hướng dẫn cài trên card |
-| **Kết nối Claude** | Card Claude Code (chưa kết nối) | Javis chạy `claude setup-token` và hiện link đăng nhập claude.ai để lấy token dài hạn (dùng 1 năm) |
+| **Kết nối Claude** | Card Claude Code (chưa kết nối) | Bước 1 đăng nhập claude.ai đầy đủ (mang theo kết nối claude.ai), bước 2 lấy token dài hạn dùng 1 năm làm dự phòng. Mac và Windows: chỉ có phần token |
+| **Lấy token dự phòng** / **Để sau** | Card Claude Code (đã đăng nhập, chưa có token) | Lấy token dài hạn làm dự phòng cho phiên đăng nhập; Để sau bỏ qua bước này, thẻ hiện dòng vàng nhắc |
 | **Xác nhận mã** | Card Claude Code, sau khi bấm Kết nối Claude | Gửi mã trang claude.ai đưa cho bạn |
 | **Dán token** / **Lưu token** | Card Claude Code | Dán token làm bằng `claude setup-token` ở nơi khác (bắt đầu bằng `sk-ant-oat01-`) rồi lưu |
 | **Token ••••** | Card Claude Code (đã kết nối bằng token) | Đang chạy bằng token dài hạn, kèm ngày hết hạn và số ngày còn lại |

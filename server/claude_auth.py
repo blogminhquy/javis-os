@@ -227,6 +227,56 @@ def token_took_over(now: float = None, within: float = 120.0) -> bool:
     return bool(at) and 0 <= now - at <= within and login_dead()
 
 
+# ---- Connect Claude: the full sign-in first, the token second (owner, 2026-11-28) ----
+# Owner that day: "keep both, but sign in fully first and get the token after". The full login is what the turns run
+# on (connectors), so it comes first; the claude.ai page is then already signed in, and the token step is one click on
+# Authorize. One sign-in cannot give both: Anthropic issues a setup-token with `user:inference` only (above).
+BACKUP_REMIND_AFTER_S = 15 * 60
+
+
+def login_then_token(platform: str = None) -> bool:
+    """Whether Connect Claude runs the full sign-in first and the token second. False on a Mac (the login lives in
+    the Keychain, Javis cannot see its scopes, so the token is the one way in, as before) and where `setup-token`
+    cannot run from the card (no pseudo-terminal: Windows, where the token is pasted)."""
+    import sys
+    if (sys.platform if platform is None else platform) == "darwin":
+        return False
+    try:
+        import claude_setup_token
+        return claude_setup_token.supported()
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def backup_missing(settings: dict = None) -> bool:
+    """Turns run on the machine's own connector-capable login and no long-lived token stands behind it: the day the
+    login runs out, bots and background work stop (the 2026-11-22 report). Read from the file, never a token."""
+    s = settings if settings is not None else cfgmod.read_settings()
+    if "ANTHROPIC_API_KEY" in env_cho_cli(s) or oauth_token(s):
+        return False
+    return login_connectors()
+
+
+def login_age_s(now: float = None) -> float:
+    """Seconds since the CLI last wrote its login file; -1 with no file."""
+    import time
+    try:
+        return (time.time() if now is None else now) - login_file().stat().st_mtime
+    except OSError:
+        return -1.0
+
+
+def backup_remind_key(now: float = None) -> str:
+    """The bell's dedup key for one "no backup token" notice per sign-in, or "" when it is not due yet: the owner may
+    still be on step 2 right after signing in, so it waits BACKUP_REMIND_AFTER_S. Only where the card has the button
+    the notice names (login_then_token)."""
+    age = login_age_s(now)
+    if age < BACKUP_REMIND_AFTER_S or not backup_missing() or not login_then_token():
+        return ""
+    sig = _login_sig()
+    return f"claude-no-backup:{sig[0] if sig else 0}"
+
+
 def runs_on(settings: dict = None) -> str:
     """What account 1's turns run on right now: "login", "token" or "api_key"."""
     s = settings if settings is not None else cfgmod.read_settings()

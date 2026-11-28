@@ -83,14 +83,22 @@ Each provider card shows **● Connected** or **○ Not connected**, the number 
 
 This is the default engine. It can use every tool, skill and memory, plus run shell commands. It is not mandatory: if you have no Claude plan, skip this and go straight to section B (ChatGPT) or C (API keys), where Javis has the same functionality minus shell commands.
 
-Since 22/11/2026 the Claude Code card has one way in: a **long-lived token** for your Claude plan. The old sign-in (`claude auth login`) can run out midway, saying the login reached its time limit and cannot be renewed, and that stops bots and background work. The token is never signed out midway.
+Since 28/11/2026 **Connect Claude** does **two steps in a row**:
+
+- **Step 1: the full claude.ai sign-in** (`claude auth login`). It carries the Gmail, Calendar, Drive... you added on claude.ai, and Claude Code runs on it.
+- **Step 2: a long-lived token as the backup** (`claude setup-token`). The sign-in can run out midway, saying it reached its time limit and cannot be renewed. Javis then moves to the token by itself, so bots and background work do not stop.
+
+One sign-in cannot give both: Anthropic gives a long-lived token chat access only, without the claude.ai connectors. By step 2 claude.ai is already signed in, so it is one click on **Authorize** and a pasted code. On a **Mac** (the sign-in lives in the Keychain, which Javis cannot read) and on **Windows** (`setup-token` cannot run from the card), the token stays the one way in, as before.
 
 1. Open **Models** and find the **Claude Code** card (while it is not connected, it sits behind the **＋ Connect another provider** button at the bottom of the page).
 2. If it is not connected, the card reads **○ Not signed in** with an **Account name** box and the buttons **Connect Claude**, **Paste a token** and **↻ Check again**. If the machine running Javis has no `claude` command, the card reads **○ Claude Code not installed**, shows one install box (Docker build: update Javis; manual install: one command to copy) and offers only **↻ Check again**.
-3. Type a name in the **Account name** box (for example "Work Gmail") so it is never mixed up later, then click **Connect Claude**. Javis runs `claude setup-token` itself and shows "**1)** Open this link and sign in to claude.ai to make the token:" with the link.
+3. Type a name in the **Account name** box (for example "Work Gmail") so it is never mixed up later, then click **Connect Claude**. The card shows "**Step 1 of 2: sign in to claude.ai**" with the link.
 4. Open that link and sign in to your claude.ai account.
-5. If the page shows **a code**, paste it into the "Paste the code here" box and click **Confirm code**. On a machine with a browser the page may show no code: just come back to Javis and the card finishes by itself in a few seconds. If the code is refused, click **Get a new link** to start again.
-6. When done, Javis saves the token (encrypted) and Claude Code runs on it. The card switches to **● Connected**, with a **Token ••••** line underneath showing the token's last four characters.
+5. If the page shows **a code**, paste it into the "Paste the code here" box and click **Confirm code**. On a machine with a browser the page may show no code: just come back to Javis and the card moves on by itself in a few seconds. If the code is refused, click **Get a new link** to start again.
+6. The card moves on to "**Step 2 of 2: backup token, lasts a year**" with a new link. Open it, click **Authorize** and paste the code as in step 5. To do it later, click **Later**.
+7. When done, Javis saves the token (encrypted). The card switches to **● Connected**, with a **Token ••••** line showing the token's last four characters and a **claude.ai connectors are on** line.
+
+With **Later** on step 2 Claude Code still runs, but the card shows an amber **No backup token yet** line with a **Get the backup token** button, and 15 to 25 minutes later Javis reminds you once in the bell. On a Mac and on Windows steps 3 to 7 are only the token part: the card shows "**1)** Open this link and sign in to claude.ai to make the token:" (Mac) or only the **Paste a token** button (Windows).
 
 Once connected on a token, the card has **Get a new token**, **Paste a token** and **Disconnect**. **Disconnect** also makes Javis forget the token. **↻ Check again** only appears while not connected, for when you just did something in a terminal and want Javis to look again.
 
@@ -503,7 +511,8 @@ Up to and including 0.42.1 there was a bug in exactly this place: only ChatGPT/C
 | **＋ Connect another provider (N)** | Bottom of the page | Show the N providers not yet connected, to sign in / paste a key |
 | **○ Not signed in** | Claude Code card | Claude Code is not connected on this machine |
 | **○ Claude Code not installed** | Claude Code card | The machine running Javis has no `claude` command; follow the install box on the card |
-| **Connect Claude** | Claude Code card (not connected) | Javis runs `claude setup-token` and shows a claude.ai sign-in link to get a long-lived token (lasts a year) |
+| **Connect Claude** | Claude Code card (not connected) | Step 1 is the full claude.ai sign-in (it carries the claude.ai connectors), step 2 a long-lived token that lasts a year as the backup. Mac and Windows: only the token part |
+| **Get the backup token** / **Later** | Claude Code card (signed in, no token) | Gets the long-lived token as the sign-in's backup; Later skips it and the card shows an amber reminder line |
 | **Confirm code** | Claude Code card, after clicking Connect Claude | Sends the code the claude.ai page gave you |
 | **Paste a token** / **Save token** | Claude Code card | Paste a token made with `claude setup-token` elsewhere (it starts with `sk-ant-oat01-`) and save it |
 | **Token ••••** | Claude Code card (connected on a token) | Runs on the long-lived token, with its expiry date and the days left |
