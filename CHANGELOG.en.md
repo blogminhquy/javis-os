@@ -8,6 +8,16 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.658.6] - 2026-11-28
+### Improved
+- **The phone header keeps only the menu on the left and the bell on the right.** The "+" is gone; a new conversation is the "New conversation" button in the conversation drawer (Chat and Assistants pages).
+- **The Chat page bar drops its "Shrink" button back to the Javis screen.** The contents button no longer touches the project folder chip.
+- **The Assistants right column fits one row on a phone.** History, Jobs and Settings have icons, a tab not chosen shows only its icon, and the X sits on the same row.
+### Fixed
+- **The Assistants page no longer sticks on "Loading the conversation…" with a send button that does nothing.** A partner list that takes over 16 seconds shows a message with Retry, and Retry asks for a fresh copy instead of waiting behind the stuck one.
+- **The Teams emoji card closes on a tap outside it.** Before, holding a message before the emoji showed left the card frozen on screen.
+- **The pin button in the actions card just says "Pin"** and no longer wraps.
+
 ## [0.658.5] - 2026-11-28
 ### Improved
 - **Every change is read by Claude before it ships.** A green CI used to be enough to merge; now a Claude review of bugs, security and the project rules must pass too, so fewer bugs reach your machine.
