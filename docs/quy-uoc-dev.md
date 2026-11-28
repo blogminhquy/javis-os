@@ -24,10 +24,47 @@ Javis trên máy người dùng cũng chạy `claude` với cwd là repo này.
   dùng merge commit). Chủ repo cho phép từ 2026-07-30 để thay đổi lên VPS thử được ngay, không
   cần hỏi lại mỗi lần. Khác biệt duy nhất so với thường lệ là merge không chờ ai duyệt tay.
 - **CI đỏ thì KHÔNG merge.** Sửa cho xanh đã.
+- **Từ 2026-11-28 còn phải qua check `Claude review`** (mục "Claude duyệt trước khi merge" ngay dưới).
 - Chủ repo nhắc lại ngày 2026-09-26: **mỗi lần merge vào `main` phải phát hành số phiên bản
   mới** để các máy khác nhận biết có bản cập nhật. Từ 2026-11-04 việc tăng số do máy làm, xem mục
   dưới. Sau khi merge, xác nhận workflow **Release** chạy xanh và `VERSION` trên `main` đã tăng.
   Không coi việc merge code là đã phát hành xong nếu bản mới chưa được xuất bản.
+
+## Claude duyệt trước khi merge (từ 2026-11-28)
+
+Chủ repo 28/11/2026, sau khi đọc playbook AI-native SDLC của Anthropic: "AI duyệt trước khi tự merge. Hiện tại CI xanh
+là merge, không ai đọc diff." Nay mỗi PR có một lượt Claude đọc diff theo `REVIEW.md` ở gốc repo.
+
+- **Chạy ở đâu:** workflow `.github/workflows/review.yml`, check tên `Claude review`, chạy khi PR mở, có commit mới,
+  hoặc mô tả PR được sửa. Script `tools/review_pr.py` gọi `claude -p` ở chế độ hạn chế, chỉ có Read, Grep, Glob, nên
+  diff (chữ không tin được) không khiến nó chạy lệnh hay ra mạng được.
+- **Luật lấy từ `main`, không lấy từ PR:** workflow chạy bằng `pull_request_target`, nên `REVIEW.md`, script và chính
+  workflow đều là bản trên `main`. PR sửa luật duyệt chỉ có hiệu lực sau khi merge, không tự chấm điểm mình được.
+  Đừng thêm bước nào chạy mã của PR trong workflow này (nó cầm secret).
+- **Hai mức:** `important` (lỗi thật, lỗ bảo mật, phạm luật cứng) làm check đỏ; `nit` chỉ góp ý, tối đa 5 cái.
+  Kết quả nằm trong MỘT bình luận trên PR, sửa đè mỗi lượt.
+- **Merge khi:** CI xanh VÀ `Claude review` xanh. Check đỏ vì `important` thì sửa rồi đẩy commit mới. Nếu chắc đó là
+  báo nhầm, ghi dưới tiêu đề `## Review dismissals` trong mô tả PR, mỗi dòng một lỗi kèm lý do. Sửa mô tả là check
+  chạy lại, Claude bỏ lỗi đó nếu lý do đúng. Không bịa lý do để qua check.
+- **Check đỏ vì reviewer hỏng** (hết lượt, mạng): bấm chạy lại job, không merge khi chưa có lượt duyệt xanh.
+- **Check xanh kèm cảnh báo "not reviewed"** (thiếu secret, hoặc PR từ fork: cố ý bỏ qua để người lạ không tiêu lượt
+  của chủ repo hay điều khiển model đang cầm token): người merge tự chạy một lượt duyệt bằng
+  subagent mới, đọc `REVIEW.md` và diff, rồi dán kết quả vào PR trước khi merge.
+- **PR phát hành của bot** được merge bằng `--admin` ngay lập tức, nên lúc check chạy PR đã đóng và check tự bỏ qua.
+  Check không bao giờ né duyệt theo tên nhánh, vì ai có quyền đẩy cũng đặt được tên nhánh.
+- **Sửa luật duyệt:** sửa `REVIEW.md`, cùng PR với lý do. Một lỗi bị bỏ sót lần thứ hai thì thêm thành một dòng
+  trong `REVIEW.md` (đúng tinh thần "sai hai lần thì ghi vào luật" của playbook).
+
+**Cài một lần (chủ repo):**
+
+1. Trên máy có Claude Code, chạy `claude setup-token`, chép token. Lưu thành secret `CLAUDE_CODE_OAUTH_TOKEN` của
+   repo (Settings, Secrets and variables, Actions). Dùng API key thì lưu thành `ANTHROPIC_API_KEY`.
+2. Settings, Rules (hoặc Branches), luật của `main`: thêm `Claude review` vào danh sách check bắt buộc. Có bước này
+   thì GitHub chặn hẳn việc merge khi check đỏ, không chỉ dựa vào phiên Claude nhớ luật.
+3. Muốn chọn model riêng cho lượt duyệt: thêm biến repo `REVIEW_MODEL` (ví dụ `opus`). Để trống là model mặc định.
+
+Token gói Claude dùng cho CI là dùng nền, ngoài cách dùng cá nhân thông thường mà Anthropic tính cho gói. Một lượt
+duyệt mỗi lần đẩy commit là mức vừa phải, nhưng muốn yên tâm thì dùng API key.
 
 ## Xử lý issue và PR của người khác: xác minh, rồi làm tốt hơn (từ 2026-11-26)
 
