@@ -120,10 +120,28 @@ _, f5 = bot_images.pick(f"Dạ đây ạ ![qr]({HIST})", BRAIN, "u1")
 check("a link any customer wrote in the inbox is refused", f5 == [] and FETCHED == [])
 check("the store answers the question", conversations.customer_wrote(HIST)
       and not conversations.customer_wrote("https://cdn.pos.example/p/mingyu.jpg"))
+# A photo a customer SENT keeps its link in the metadata, not the text (second review of #1931: a scam QR re-posted).
+QR = "https://zalo-cdn.example/img/payment-qr.jpg?sig=1&exp=2"
+conversations.ghi_su_kien({"channel": "zalo_personal", "account_id": "z1", "external_chat_id": "g9",
+                           "chat_type": "group", "sender_type": "customer", "sender_id": "x", "sender_name": "X",
+                           "message_type": "image", "text": "[Zalo: khách gửi image]", "external_message_id": "h2",
+                           "metadata": {"image_url": QR}})
+bot_images.note_tool_result('{"messages": [{"image": "' + QR + '"}]}', {"thread": "g9"}, turn=BOT_TURN)
+FETCHED.clear()
+_, f6 = bot_images.pick(f"Dạ mã QR đây ạ ![qr]({QR})", BRAIN, "u1")
+check("a photo a customer sent is refused", f6 == [] and FETCHED == [])
+ESC = QR.replace("&", "&amp;")
+bot_images.note_tool_result('<img src="' + ESC + '">', {"thread": "g9"}, turn=BOT_TURN)
+_, f7 = bot_images.pick(f"Dạ đây ạ ![qr]({ESC})", BRAIN, "u1")
+check("the same link handed back HTML-escaped is refused too", f7 == [] and FETCHED == [])
 bot_images.fetch_remote = real_fetch
 
 check("a reply with a web image is seen", bot_images.has_web_image("xem ![a](https://cdn.pos.example/a.jpg)"))
 check("a brain image or a plain link is not", not bot_images.has_web_image("![a](attachments/a.jpg) https://a.vn"))
+check("a quoted web image is seen (it would download on the event loop otherwise)",
+      bot_images.has_web_image('![a]("https://cdn.pos.example/a.jpg")')
+      and bot_images.has_web_image("![a]('https://cdn.pos.example/a.jpg')")
+      and bot_images.has_web_image("![a](<https://cdn.pos.example/a.jpg>)"))
 
 # ============================================================
 # 3. The fetch

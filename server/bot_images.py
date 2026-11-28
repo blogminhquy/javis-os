@@ -31,6 +31,7 @@ import hashlib
 import ipaddress
 import os
 import re
+import secrets
 import socket
 import threading
 import time
@@ -176,14 +177,30 @@ def forget_remote() -> None:
         _remote.clear()
 
 
+def _link_forms(url: str) -> List[str]:
+    """The forms one link takes in stored text: as written, HTML-unescaped, percent-decoded, and with the scheme and
+    host in lower case (a read tool may hand a customer's link back in any of them)."""
+    import html
+    forms = [url, html.unescape(url), unquote(url), unquote(html.unescape(url))]
+    try:
+        p = urlsplit(url)
+        if p.scheme and p.netloc:
+            forms.append(p._replace(scheme=p.scheme.lower(), netloc=p.netloc.lower()).geturl())
+    except ValueError:
+        pass
+    return [f for f in dict.fromkeys(forms) if f]
+
+
 def _customer_wrote(url: str, turn_text: str = "") -> bool:
-    """A customer wrote this link: in the message being answered, or in any customer message of the inbox (a history
-    read hands a customer's words back as a tool result). Fails closed."""
-    if url in str(turn_text or ""):
+    """A customer wrote or sent this link: in the message being answered, or in any customer message of the inbox,
+    text or metadata (a history read hands a customer's words and photos back as a tool result). Fails closed."""
+    forms = _link_forms(url)
+    said = str(turn_text or "")
+    if any(f in said for f in forms) or any(f in unquote(said) for f in forms):
         return True
     try:
         import conversations
-        return conversations.customer_wrote(url)
+        return conversations.customer_wrote(*forms)
     except Exception:       # noqa: BLE001
         return True
 
@@ -229,13 +246,20 @@ def cache_dir() -> Path:
     return Path(STATE_DIR) / "bot-image-cache"
 
 
+CACHE_KEEP_YOUNG_S = 600       # a file this fresh is never pruned: a reply may be about to send it
+
+
 def _prune_cache(d: Path) -> None:
-    """Keep the cache to CACHE_MAX_FILES files and CACHE_MAX_AGE_S days; leftover partial files go too."""
+    """Keep the cache to CACHE_MAX_FILES files and CACHE_MAX_AGE_S days. Leftover partial files go once they are
+    stale; nothing younger than CACHE_KEEP_YOUNG_S is touched (another reply may be writing or sending it)."""
     try:
         now = time.time()
         files = sorted((p for p in d.iterdir() if p.is_file()), key=lambda p: p.stat().st_mtime, reverse=True)
         for i, p in enumerate(files):
-            if i >= CACHE_MAX_FILES or now - p.stat().st_mtime > CACHE_MAX_AGE_S or p.name.endswith(".part"):
+            age = now - p.stat().st_mtime
+            if age < CACHE_KEEP_YOUNG_S:
+                continue
+            if i >= CACHE_MAX_FILES or age > CACHE_MAX_AGE_S or p.name.endswith(".part"):
                 p.unlink(missing_ok=True)
     except OSError:
         pass
@@ -252,17 +276,23 @@ def fetch_remote(url: str, deadline: Optional[float] = None) -> str:
     for ext in set(_CT_EXT.values()):
         old = d / (stem + ext)
         if old.is_file() and old.stat().st_size > 0:
+            try:
+                os.utime(old)       # in use again: keep it out of the next prune
+            except OSError:
+                pass
             return str(old)
     cur = url
     try:
         with httpx.Client(timeout=FETCH_TIMEOUT_S, follow_redirects=False) as client:
             for _ in range(FETCH_REDIRECTS + 1):
                 ip = _vet(cur)
-                if not ip or time.monotonic() > deadline:
+                left = deadline - time.monotonic()
+                if not ip or left <= 0:
                     return ""
                 call, headers, ext_ = web_watch.pinned(cur, ip)
                 headers = dict(headers, **{"User-Agent": "Mozilla/5.0 (Javis bot image)"})
-                with client.stream("GET", call, headers=headers, extensions=ext_) as r:
+                with client.stream("GET", call, headers=headers, extensions=ext_,
+                                   timeout=min(FETCH_TIMEOUT_S, max(0.5, left))) as r:
                     if r.status_code in (301, 302, 303, 307, 308) and r.headers.get("location"):
                         cur = urljoin(cur, r.headers["location"])
                         continue
@@ -288,7 +318,7 @@ def fetch_remote(url: str, deadline: Optional[float] = None) -> str:
                     d.mkdir(parents=True, exist_ok=True)
                     _prune_cache(d)
                     path = d / (stem + ext)
-                    tmp = path.with_name(path.name + ".part")
+                    tmp = path.with_name(f"{path.name}.{secrets.token_hex(6)}.part")    # one per writer
                     try:
                         tmp.write_bytes(bytes(buf))
                         os.replace(tmp, path)
@@ -300,12 +330,17 @@ def fetch_remote(url: str, deadline: Optional[float] = None) -> str:
     return ""
 
 
-_WEB_IMAGE_RE = re.compile(r"!\[[^\]]*\]\(\s*<?https?://", re.IGNORECASE)
-
-
 def has_web_image(text: str) -> bool:
-    """The reply embeds at least one web image, so `pick` may download: only then is it worth a thread."""
-    return bool(_WEB_IMAGE_RE.search(str(text or "")))
+    """The reply embeds at least one web image, so `pick` may download: only then is it worth a thread. Decided by
+    the very parser `pick` uses, so a quoted or bracketed target cannot slip past and download on the event loop."""
+    text = str(text or "")
+    if "![" not in text or "://" not in text:
+        return False
+    for m in channel_context._MD_LINK_RE.finditer(text):
+        if m.group(1) == "!" and re.match(r"^https?://", str(channel_context._md_link_target(m) or "").strip(),
+                                          re.IGNORECASE):
+            return True
+    return False
 
 
 def channel_sends_files(channel: str) -> bool:
