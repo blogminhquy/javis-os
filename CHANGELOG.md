@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.661.0] - 2026-11-28
+### Cải thiện
+- **Kết nối Claude giờ làm 2 bước liền nhau.** Bước 1 đăng nhập claude.ai đầy đủ, nên Gmail, Lịch, Drive... đã thêm trên claude.ai chạy được ngay. Bước 2 tự hiện ra để lấy token dài hạn làm dự phòng, lúc này claude.ai đã đăng nhập sẵn nên chỉ cần bấm Authorize.
+- **Bỏ qua bước 2 vẫn được nhắc.** Thẻ hiện dòng vàng "Chưa có token dự phòng" kèm nút lấy token, và chuông nhắc một lần, để phiên đăng nhập hết hạn không làm bot và việc nền dừng.
+- Mac và Windows giữ cách cũ: token là đường vào duy nhất.
+
 ## [0.660.0] - 2026-11-28
 ### Cải thiện
 - **Thêm ngoại lệ theo cuộc chat không còn chọn nhầm.** Không có ai được chọn sẵn nữa: bấm Thêm cuộc chat, gõ tên, chạm vào người cần thêm. Ngoại lệ đã thêm chỉ bỏ được bằng nút X.

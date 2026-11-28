@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.661.0] - 2026-11-28
+### Improved
+- **Connect Claude now does two steps in a row.** Step 1 is the full claude.ai sign-in, so the Gmail, Calendar, Drive... added on claude.ai work right away. Step 2 follows on its own to get the long-lived token as the backup; claude.ai is already signed in by then, so it is one click on Authorize.
+- **Skipping step 2 still gets a reminder.** The card shows an amber "No backup token yet" line with a button for the token, and the bell reminds once, so a sign-in running out never stops bots and background work.
+- Mac and Windows keep the old way: the token is the one way in.
+
 ## [0.660.0] - 2026-11-28
 ### Improved
 - **Per-chat exceptions can no longer be added by mistake.** Nobody is pre-picked any more: press Add a chat, type a name, tap the person. A saved exception is removed only with its X.
