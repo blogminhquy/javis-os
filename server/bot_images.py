@@ -300,6 +300,14 @@ def fetch_remote(url: str, deadline: Optional[float] = None) -> str:
     return ""
 
 
+_WEB_IMAGE_RE = re.compile(r"!\[[^\]]*\]\(\s*<?https?://", re.IGNORECASE)
+
+
+def has_web_image(text: str) -> bool:
+    """The reply embeds at least one web image, so `pick` may download: only then is it worth a thread."""
+    return bool(_WEB_IMAGE_RE.search(str(text or "")))
+
+
 def channel_sends_files(channel: str) -> bool:
     """Whether the channel's transport sends a reply's `files` (`nang_luc.gui_file`)."""
     spec = channels.spec(str(channel or ""))

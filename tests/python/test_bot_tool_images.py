@@ -122,6 +122,9 @@ check("the store answers the question", conversations.customer_wrote(HIST)
       and not conversations.customer_wrote("https://cdn.pos.example/p/mingyu.jpg"))
 bot_images.fetch_remote = real_fetch
 
+check("a reply with a web image is seen", bot_images.has_web_image("xem ![a](https://cdn.pos.example/a.jpg)"))
+check("a brain image or a plain link is not", not bot_images.has_web_image("![a](attachments/a.jpg) https://a.vn"))
+
 # ============================================================
 # 3. The fetch
 # ============================================================
