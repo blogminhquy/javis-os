@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.658.7] - 2026-11-28
+### Sửa lỗi
+- **Cuộc chat Zalo bật mã hoá đầu cuối không còn hiện chuỗi ký tự lạ.** Zalo chỉ cho app trên máy đã bật mã hoá đọc những tin này, nên Hộp thư nay hiện "Tin nhắn mã hoá đầu cuối: chỉ xem được trong app Zalo". Bot không trả lời những tin đó nữa và không báo nhầm "có người gọi A.I.". Tin đã lưu từ trước cũng được đổi lại khi Javis khởi động.
+
 ## [0.658.6] - 2026-11-28
 ### Cải thiện
 - **Đầu trang trên điện thoại chỉ còn nút ba gạch bên trái và chuông bên phải.** Nút "+" đã bỏ, hội thoại mới nằm ở nút "Hội thoại mới" trong ngăn hội thoại (trang Trò chuyện và Cộng sự).

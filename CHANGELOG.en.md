@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.658.7] - 2026-11-28
+### Fixed
+- **End-to-end encrypted Zalo chats no longer show scrambled text.** Only the Zalo app on a device that joined the encryption can read them, so the inbox now says "End-to-end encrypted message: open the Zalo app to read it". The bot no longer answers them or reports a false "someone asked for A.I.". Messages stored earlier are relabelled when Javis starts.
+
 ## [0.658.6] - 2026-11-28
 ### Improved
 - **The phone header keeps only the menu on the left and the bell on the right.** The "+" is gone; a new conversation is the "New conversation" button in the conversation drawer (Chat and Assistants pages).
