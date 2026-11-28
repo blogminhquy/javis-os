@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.660.0] - 2026-11-28
+### Cải thiện
+- **Thêm ngoại lệ theo cuộc chat không còn chọn nhầm.** Không có ai được chọn sẵn nữa: bấm Thêm cuộc chat, gõ tên, chạm vào người cần thêm. Ngoại lệ đã thêm chỉ bỏ được bằng nút X.
+- **Ô tìm người dễ dùng hơn trên điện thoại.** Danh sách kết quả hiện tên, tài khoản và lần nhắn gần nhất, chữ to, dễ chạm.
+- **Bỏ mục Người phụ trách ở form bot.** Câu hỏi cũ đang chờ người phụ trách được xoá cùng. Khi bot gặp câu chỉ người thật trả lời được, chuông báo chủ vẫn mở thẳng cuộc chat của khách như trước.
+
 ## [0.659.0] - 2026-11-28
 ### Thêm mới
 - **Bot chatbot gửi được ảnh sản phẩm lấy từ POS hoặc công cụ nguồn hàng.** Khách xin ảnh thì bot tra sản phẩm trong công cụ đã nối, rồi gửi ảnh mà công cụ đó trả về. Không có nguồn nào có ảnh thì bot nói thẳng là chưa gửi được ảnh, không hứa gửi sau. Bot chỉ gửi link ảnh do chính công cụ tra cứu hoặc tài liệu của nó đưa ra, không bao giờ tải link mà khách từng gõ.
