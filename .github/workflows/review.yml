@@ -4,18 +4,25 @@ name: Claude review
 # A merge needs CI green AND this check green: the owner decided on 2026-11-28 that sessions which merge on
 # green CI must have the diff read first (docs/quy-uoc-dev.md, "Claude duyệt trước khi merge").
 #
-# Only `pull_request`: a push to a branch with no PR has nothing to review, and a second run per commit would
-# give two checks with the same name. `edited` re-runs the review after the author answers findings under
-# `## Review dismissals`; the title and description are read fresh from the API, so "Re-run jobs" also sees them.
+# `pull_request_target`, not `pull_request`: GitHub then runs THIS file as it is on main, and the job runs the
+# script and reads REVIEW.md from main too (checkout `base/`). A PR therefore cannot rewrite the rules, the
+# script or this workflow to grade itself; a change to them takes effect only once merged. The PR itself is
+# checked out to `pr/` as DATA: nothing in it is executed (no install, no build, no test), git only diffs it
+# and Claude only reads it, in restricted and safe mode with Read, Grep and Glob. Never add a step that runs
+# code from `pr/` here: this event holds the repository secrets. The first run happens on the PR after the
+# one that adds this file, because GitHub reads it from main.
+#
+# `edited` re-runs the review after the author answers findings under `## Review dismissals`; the title and
+# description are read fresh from the API, so "Re-run jobs" also sees them.
 #
 # Secrets (one is enough, add it once under Settings, Secrets and variables, Actions):
 #   CLAUDE_CODE_OAUTH_TOKEN  from `claude setup-token` (Claude plan), or
 #   ANTHROPIC_API_KEY        an API key.
 # Optional repository variable REVIEW_MODEL picks the model (alias or id); empty uses the CLI default.
-# With no secret, or on a PR from a fork (GitHub hides secrets there), the check passes with a warning and the
-# person merging runs the review by hand, as docs/quy-uoc-dev.md says.
+# With no secret, or on a PR from a fork (skipped so strangers cannot spend the owner's quota), the check
+# passes with a warning and the person merging reviews by hand, as docs/quy-uoc-dev.md says.
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review, edited]
 
 permissions:
@@ -54,10 +61,21 @@ jobs:
           fi
           echo "run=$run" >> "$GITHUB_OUTPUT"
 
+      # The rules and the script, from main.
       - uses: actions/checkout@v4
         if: steps.gate.outputs.run == 'true'
         with:
+          path: base
+          persist-credentials: false
+
+      # The PR at its merge commit, as data only (see the top of this file).
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          path: pr
           fetch-depth: 0
+          persist-credentials: false
 
       - uses: actions/setup-python@v5
         if: steps.gate.outputs.run == 'true'
@@ -84,8 +102,8 @@ jobs:
           gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json title --jq .title > "$RUNNER_TEMP/title.txt"
           gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json body --jq .body > "$RUNNER_TEMP/body.txt"
           set +e
-          python tools/review_pr.py --base "origin/$BASE_REF" --title "$(cat "$RUNNER_TEMP/title.txt")" \
-            --body-file "$RUNNER_TEMP/body.txt" --out "$RUNNER_TEMP/review.md"
+          python base/tools/review_pr.py --repo pr --rules base/REVIEW.md --base "origin/$BASE_REF" \
+            --title "$(cat "$RUNNER_TEMP/title.txt")" --body-file "$RUNNER_TEMP/body.txt" --out "$RUNNER_TEMP/review.md"
           code=$?
           set -e
           echo "code=$code" >> "$GITHUB_OUTPUT"

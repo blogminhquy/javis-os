@@ -9,8 +9,10 @@ Used by `.github/workflows/review.yml` on every pull request. Exit codes:
     1  at least one important finding: the PR must not merge yet
     2  the reviewer itself failed (CLI error, no structured answer): re-run the job
 
-Claude runs non-interactively (`claude -p`) in restricted mode with only Read, Grep and Glob, so the
-diff it reads (untrusted text) cannot make it run commands or reach the network. The answer comes
+Claude runs non-interactively (`claude -p`) in restricted and safe mode with only Read, Grep and Glob,
+so the diff it reads (untrusted text) cannot make it run commands or reach the network, and the PR's own
+CLAUDE.md, skills, hooks and settings are not loaded. The rules come from `--rules`, which the workflow
+points at REVIEW.md of the BASE branch: a PR must not be able to rewrite the rules it is judged by. The answer comes
 back as JSON checked against REVIEW_SCHEMA. Nits are capped at MAX_NITS, as REVIEW.md promises.
 
 `--claude-bin` (or $CLAUDE_BIN) swaps the CLI for a fake one in tests.
@@ -232,6 +234,7 @@ def run_reviewer(prompt: str, claude_bin: str, model: str, cwd: Path = ROOT, tim
         "--output-format", "json",
         "--json-schema", json.dumps(REVIEW_SCHEMA),
         "--restricted",
+        "--safe-mode",
         "--strict-mcp-config",
         "--tools", "Read,Grep,Glob",
     ]
@@ -255,7 +258,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", required=True, help="where to write the comment (markdown)")
     parser.add_argument("--model", default=os.environ.get("REVIEW_MODEL", ""), help="model alias or id")
     parser.add_argument("--claude-bin", default=os.environ.get("CLAUDE_BIN", "claude"))
-    parser.add_argument("--repo", default=str(ROOT), help="repository root (tests point it elsewhere)")
+    parser.add_argument("--repo", default=str(ROOT), help="checkout of the PR to review")
+    parser.add_argument("--rules", help="review rules file; default REVIEW.md inside --repo. CI passes the base branch's copy")
     parser.add_argument("--print-prompt", action="store_true", help="print the prompt and stop")
     args = parser.parse_args(argv)
 
@@ -263,7 +267,7 @@ def main(argv: list[str] | None = None) -> int:
     out = Path(args.out)
     body = Path(args.body_file).read_text(encoding="utf-8") if args.body_file else ""
     try:
-        review_rules = (repo / REVIEW_FILE).read_text(encoding="utf-8")
+        review_rules = Path(args.rules or repo / REVIEW_FILE).read_text(encoding="utf-8")
         files = changed_files(args.base, cwd=repo)
         diff, left_out = build_diff(args.base, files, cwd=repo)
     except (OSError, subprocess.CalledProcessError) as exc:

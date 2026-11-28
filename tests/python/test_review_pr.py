@@ -140,8 +140,9 @@ with tempfile.TemporaryDirectory() as tmp:
     argv = rec["argv"]
     check("no finding exits 0", code == 0 and "Clear to merge" in text)
     check("reviewer runs in print mode with a schema", "-p" in argv and "--json-schema" in argv)
-    check("reviewer runs restricted, read-only tools only",
-          "--restricted" in argv and argv[argv.index("--tools") + 1] == "Read,Grep,Glob")
+    check("reviewer runs restricted and safe mode, read-only tools only",
+          "--restricted" in argv and "--safe-mode" in argv
+          and argv[argv.index("--tools") + 1] == "Read,Grep,Glob")
     check("diff of the PR reaches the reviewer", "x = 2" in rec["stdin"])
     check("generated file is listed but not diffed",
           "GENERATED FILES NOT SENT" in rec["stdin"] and "+generated" not in rec["stdin"])
@@ -159,6 +160,17 @@ with tempfile.TemporaryDirectory() as tmp:
     code, text = run_main(repo, fake, record, "not json", exit_code=1)
     check("reviewer failure exits 2 and says not reviewed", code == 2 and "not reviewed" in text)
 
+    rules_file = tmp / "base-rules.md"
+    rules_file.write_text("BASE BRANCH RULES\n", encoding="utf-8")
+    (repo / "REVIEW.md").write_text("PR REWROTE THE RULES\n", encoding="utf-8")
+    out = tmp / "review.md"
+    os.environ["FAKE_REVIEW_OUTPUT"] = envelope([])
+    review_pr.main(["--repo", str(repo), "--rules", str(rules_file), "--base", "main", "--out", str(out),
+                    "--claude-bin", str(fake), "--model", ""])
+    stdin = json.loads(record.read_text(encoding="utf-8"))["stdin"]
+    check("--rules wins over the PR's own REVIEW.md",
+          "BASE BRANCH RULES" in stdin and "PR REWROTE THE RULES" not in stdin)
+
     run_main(repo, fake, record, envelope([]), body="## Review dismissals\n- 1: fine because Y\n")
     rec = json.loads(record.read_text(encoding="utf-8"))
     check("dismissals reach the reviewer", "REVIEW DISMISSALS FROM THE AUTHOR" in rec["stdin"]
@@ -169,9 +181,20 @@ for key in ("FAKE_REVIEW_OUTPUT", "FAKE_REVIEW_RECORD", "FAKE_REVIEW_EXIT"):
 
 # ---------------------------------------------------------------- 3. Workflow and REVIEW.md
 wf = (ROOT / ".github/workflows/review.yml").read_text(encoding="utf-8")
-check("workflow runs the script", "python tools/review_pr.py" in wf)
-check("workflow only listens to pull_request (no duplicate check from push)",
-      "pull_request:" in wf and "\n  push:" not in wf and "workflow_dispatch" not in wf)
+check("workflow runs main's script on main's rules",
+      "python base/tools/review_pr.py --repo pr --rules base/REVIEW.md" in wf)
+check("workflow uses pull_request_target so a PR cannot edit its own gate",
+      "pull_request_target:" in wf and "\n  pull_request:" not in wf)
+check("workflow has no second trigger giving a duplicate check",
+      "\n  push:" not in wf and "workflow_dispatch" not in wf)
+check("PR checkout is the merge ref, without credentials",
+      "ref: refs/pull/${{ github.event.pull_request.number }}/merge" in wf
+      and wf.count("persist-credentials: false") == 2)
+run_lines = [ln for ln in wf.splitlines() if ln.strip() and not ln.strip().startswith("#")]
+check("nothing from the PR checkout is executed",
+      not any(tok in ln for ln in run_lines for tok in ("python pr/", "bash pr/", "sh pr/", "./pr/",
+                                                       "npm ci", "pip install", "make ")))
+check("workflow skips fork PRs (no strangers on the owner's quota)", "IS_FORK" in wf)
 check("workflow pins the Claude Code CLI", "@anthropic-ai/claude-code@2." in wf)
 check("workflow can only comment, not push", "contents: read" in wf and "contents: write" not in wf)
 check("workflow re-reads the PR body (dismissals after a re-run)", "--json body" in wf)
@@ -184,7 +207,7 @@ check("REVIEW.md caps nits at the same number", f"At most {review_pr.MAX_NITS} p
 check("REVIEW.md explains dismissals", "## Review dismissals" in rules)
 for name, text in (("REVIEW.md", rules), ("review.yml", wf),
                    ("review_pr.py", (ROOT / "tools/review_pr.py").read_text(encoding="utf-8"))):
-    check(f"{name} has no em dash", "—" not in text)
+    check(f"{name} has no em dash", "\u2014" not in text)
 check("quy-uoc-dev.md has the merge rule",
       "Claude duyệt trước khi merge" in (ROOT / "docs/quy-uoc-dev.md").read_text(encoding="utf-8"))
 

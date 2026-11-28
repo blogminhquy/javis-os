@@ -25,6 +25,10 @@ Javis trên máy người dùng cũng chạy `claude` với cwd là repo này.
   cần hỏi lại mỗi lần. Khác biệt duy nhất so với thường lệ là merge không chờ ai duyệt tay.
 - **CI đỏ thì KHÔNG merge.** Sửa cho xanh đã.
 - **Từ 2026-11-28 còn phải qua check `Claude review`** (mục "Claude duyệt trước khi merge" ngay dưới).
+- Chủ repo nhắc lại ngày 2026-09-26: **mỗi lần merge vào `main` phải phát hành số phiên bản
+  mới** để các máy khác nhận biết có bản cập nhật. Từ 2026-11-04 việc tăng số do máy làm, xem mục
+  dưới. Sau khi merge, xác nhận workflow **Release** chạy xanh và `VERSION` trên `main` đã tăng.
+  Không coi việc merge code là đã phát hành xong nếu bản mới chưa được xuất bản.
 
 ## Claude duyệt trước khi merge (từ 2026-11-28)
 
@@ -34,6 +38,9 @@ là merge, không ai đọc diff." Nay mỗi PR có một lượt Claude đọc 
 - **Chạy ở đâu:** workflow `.github/workflows/review.yml`, check tên `Claude review`, chạy khi PR mở, có commit mới,
   hoặc mô tả PR được sửa. Script `tools/review_pr.py` gọi `claude -p` ở chế độ hạn chế, chỉ có Read, Grep, Glob, nên
   diff (chữ không tin được) không khiến nó chạy lệnh hay ra mạng được.
+- **Luật lấy từ `main`, không lấy từ PR:** workflow chạy bằng `pull_request_target`, nên `REVIEW.md`, script và chính
+  workflow đều là bản trên `main`. PR sửa luật duyệt chỉ có hiệu lực sau khi merge, không tự chấm điểm mình được.
+  Đừng thêm bước nào chạy mã của PR trong workflow này (nó cầm secret).
 - **Hai mức:** `important` (lỗi thật, lỗ bảo mật, phạm luật cứng) làm check đỏ; `nit` chỉ góp ý, tối đa 5 cái.
   Kết quả nằm trong MỘT bình luận trên PR, sửa đè mỗi lượt.
 - **Merge khi:** CI xanh VÀ `Claude review` xanh. Check đỏ vì `important` thì sửa rồi đẩy commit mới. Nếu chắc đó là
@@ -56,10 +63,6 @@ là merge, không ai đọc diff." Nay mỗi PR có một lượt Claude đọc 
 
 Token gói Claude dùng cho CI là dùng nền, ngoài cách dùng cá nhân thông thường mà Anthropic tính cho gói. Một lượt
 duyệt mỗi lần đẩy commit là mức vừa phải, nhưng muốn yên tâm thì dùng API key.
-- Chủ repo nhắc lại ngày 2026-09-26: **mỗi lần merge vào `main` phải phát hành số phiên bản
-  mới** để các máy khác nhận biết có bản cập nhật. Từ 2026-11-04 việc tăng số do máy làm, xem mục
-  dưới. Sau khi merge, xác nhận workflow **Release** chạy xanh và `VERSION` trên `main` đã tăng.
-  Không coi việc merge code là đã phát hành xong nếu bản mới chưa được xuất bản.
 
 ## Xử lý issue và PR của người khác: xác minh, rồi làm tốt hơn (từ 2026-11-26)
 
