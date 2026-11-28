@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.660.0] - 2026-11-28
+### Improved
+- **Per-chat exceptions can no longer be added by mistake.** Nobody is pre-picked any more: press Add a chat, type a name, tap the person. A saved exception is removed only with its X.
+- **Finding a person is easier on a phone.** The result list shows the name, the account and the last message time, in large, easy-to-tap rows.
+- **The Staff contact field is gone from the bot form.** Questions still waiting on the staff contact are deleted with it. When the bot meets a question only a person can answer, the owner's bell still opens the customer's chat as before.
+
 ## [0.659.0] - 2026-11-28
 ### Added
 - **Chatbots send product photos from the POS or another product tool.** When a customer asks for a picture, the bot looks the product up in a connected tool and sends the photo that tool returns. When no source has one, it says plainly it cannot send a picture right now, without promising one later. A bot sends only image links its own lookup tools or documents gave it, never a link any customer wrote.
