@@ -41,7 +41,6 @@ EXCLUDED_PATTERNS = (
     "CHANGELOG.en.md",
     "docs/i18n/*",
     "tests/test_timings.json",
-    "*_baseline.json",
     "third_party/*",
     "*.lock",
     "package-lock.json",
@@ -263,10 +262,27 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--print-prompt", action="store_true", help="print the prompt and stop")
     args = parser.parse_args(argv)
 
-    repo = Path(args.repo)
     out = Path(args.out)
-    body = Path(args.body_file).read_text(encoding="utf-8") if args.body_file else ""
     try:
+        return _review(args, out)
+    except Exception as exc:  # exit 1 means "important findings"; a crash must never look like that
+        _write_failure(out, f"{type(exc).__name__}: {exc}")
+        print(f"review crashed: {exc!r}", file=sys.stderr)
+        return 2
+
+
+def _write_failure(out: Path, reason: str) -> None:
+    try:
+        out.write_text(f"{COMMENT_MARKER}\n## Claude review\n\n**The reviewer failed, so this PR is not "
+                       f"reviewed yet.** Re-run this check.\n\n`{reason}`\n", encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _review(args: argparse.Namespace, out: Path) -> int:
+    repo = Path(args.repo)
+    try:
+        body = Path(args.body_file).read_text(encoding="utf-8", errors="replace") if args.body_file else ""
         review_rules = Path(args.rules or repo / REVIEW_FILE).read_text(encoding="utf-8")
         files = changed_files(args.base, cwd=repo)
         diff, left_out = build_diff(args.base, files, cwd=repo)
@@ -284,8 +300,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         answer = parse_reviewer_output(run_reviewer(prompt, args.claude_bin, args.model, cwd=repo))
     except ReviewerError as exc:
-        out.write_text(f"{COMMENT_MARKER}\n## Claude review\n\n**The reviewer failed, so this PR is not "
-                       f"reviewed yet.** Re-run this check.\n\n`{exc}`\n", encoding="utf-8")
+        _write_failure(out, str(exc))
         print(f"reviewer failed: {exc}", file=sys.stderr)
         return 2
 

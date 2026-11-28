@@ -91,7 +91,10 @@ def run_main(repo, fake, record, output, body="", exit_code=0):
 # ---------------------------------------------------------------- 1. Pure helpers
 check("generated files are excluded", review_pr.is_excluded("CHANGELOG.md")
       and review_pr.is_excluded("docs/i18n/ja/README.md")
-      and review_pr.is_excluded("tests/python/english_identifiers_baseline.json"))
+      and review_pr.is_excluded("tests/test_timings.json"))
+check("baseline and allowlist files are reviewed (that is where a broken rule hides)",
+      not review_pr.is_excluded("tests/python/english_identifiers_baseline.json")
+      and not review_pr.is_excluded("tests/python/info_tip_allow.json"))
 check("source files are reviewed", not review_pr.is_excluded("server/main.py")
       and not review_pr.is_excluded("REVIEW.md"))
 
@@ -157,6 +160,19 @@ with tempfile.TemporaryDirectory() as tmp:
                                                           "title": "name", "detail": "d"}]))
     check("nits alone do not block", code == 0)
 
+    bad_body = tmp / "bad-body.txt"
+    bad_body.write_bytes(b"\xff\xfe not utf-8")
+    os.environ["FAKE_REVIEW_OUTPUT"] = envelope([])
+    code = review_pr.main(["--repo", str(repo), "--base", "main", "--body-file", str(bad_body),
+                           "--out", str(tmp / "r.md"), "--claude-bin", str(fake), "--model", ""])
+    check("a body that is not UTF-8 is still reviewed", code == 0)
+    code = review_pr.main(["--repo", str(repo), "--base", "main", "--out", str(tmp / "r.md"),
+                           "--claude-bin", str(tmp / "missing-cli"), "--model", ""])
+    check("a missing CLI exits 2, never 1", code == 2)
+    code = review_pr.main(["--repo", str(repo), "--base", "main", "--out", str(tmp / "no-dir" / "r.md"),
+                           "--claude-bin", str(fake), "--model", ""])
+    check("an unexpected crash exits 2, never 1", code == 2)
+
     code, text = run_main(repo, fake, record, "not json", exit_code=1)
     check("reviewer failure exits 2 and says not reviewed", code == 2 and "not reviewed" in text)
 
@@ -199,7 +215,9 @@ check("workflow pins the Claude Code CLI", "@anthropic-ai/claude-code@2." in wf)
 check("workflow can only comment, not push", "contents: read" in wf and "contents: write" not in wf)
 check("workflow re-reads the PR body (dismissals after a re-run)", "--json body" in wf)
 check("workflow fails on exit 1 and on reviewer failure", "1) echo" in wf and "*) echo" in wf)
-check("workflow skips release-bot PRs", "release-bot/*" in wf)
+check("workflow never skips by branch name", "head_ref" not in wf and "release-bot/*" not in wf)
+check("workflow skips only PRs that are no longer open", "--json state" in wf and '"OPEN"' in wf)
+check("workflow edits only its own comment", 'github-actions[bot]' in wf)
 check("workflow comment marker matches the script", review_pr.COMMENT_MARKER in wf)
 
 rules = (ROOT / "REVIEW.md").read_text(encoding="utf-8")

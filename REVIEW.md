@@ -76,8 +76,9 @@ Rules that are usually **nit** unless the result is clearly broken for users:
 
 - Taste: naming style, formatting, "could be refactored", comment wording.
 - Old code the PR does not touch (unless the PR makes it worse).
-- Generated or bulk files: `CHANGELOG*.md`, `docs/i18n/**`, `tests/test_timings.json`, `*_baseline.json`,
-  `third_party/**`, lock files.
+- Generated or bulk files: `CHANGELOG*.md`, `docs/i18n/**`, `tests/test_timings.json`, `third_party/**`, lock
+  files. Baseline and allowlist files (`*_baseline.json`, `info_tip_allow.json`) ARE reviewed: an entry added
+  there is how a broken rule hides.
 
 ## Dismissals
 

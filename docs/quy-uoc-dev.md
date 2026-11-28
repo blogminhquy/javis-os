@@ -49,7 +49,8 @@ là merge, không ai đọc diff." Nay mỗi PR có một lượt Claude đọc 
 - **Check đỏ vì reviewer hỏng** (hết lượt, mạng): bấm chạy lại job, không merge khi chưa có lượt duyệt xanh.
 - **Check xanh kèm cảnh báo "not reviewed"** (thiếu secret, PR từ fork): người merge tự chạy một lượt duyệt bằng
   subagent mới, đọc `REVIEW.md` và diff, rồi dán kết quả vào PR trước khi merge.
-- **PR phát hành của bot** (`release-bot/...`) không cần duyệt, check tự xanh.
+- **PR phát hành của bot** được merge bằng `--admin` ngay lập tức, nên lúc check chạy PR đã đóng và check tự bỏ qua.
+  Check không bao giờ né duyệt theo tên nhánh, vì ai có quyền đẩy cũng đặt được tên nhánh.
 - **Sửa luật duyệt:** sửa `REVIEW.md`, cùng PR với lý do. Một lỗi bị bỏ sót lần thứ hai thì thêm thành một dòng
   trong `REVIEW.md` (đúng tinh thần "sai hai lần thì ghi vào luật" của playbook).
 

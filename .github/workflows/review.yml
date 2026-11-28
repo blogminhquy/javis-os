@@ -42,15 +42,19 @@ jobs:
       - name: Decide whether to review
         id: gate
         env:
-          HEAD_REF: ${{ github.head_ref }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           IS_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
           HAS_OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
           HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
         run: |
           run=true
-          case "$HEAD_REF" in release-bot/*)
-            echo "Release PR from the bot: it only moves changelog fragments, nothing to review."; run=false;;
-          esac
+          # Decided by state, never by branch name (anyone with push access picks a name). The release bot's PR
+          # is merged with --admin within seconds, so by the time this runs it is MERGED and skipped here.
+          state=$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json state --jq .state)
+          if [ "$state" != "OPEN" ]; then
+            echo "PR is $state: nothing left to gate."; run=false
+          fi
           if [ "$run" = true ] && [ "$IS_FORK" = "true" ]; then
             echo "::warning::PR from a fork: GitHub hides secrets, so Claude cannot review it here. Review it by hand before merging (docs/quy-uoc-dev.md)."
             run=false
@@ -117,7 +121,8 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --paginate \
-                 --jq '.[] | select(.body | startswith("<!-- javis-claude-review -->")) | .id' | tail -n 1)
+                 --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- javis-claude-review -->"))) | .id' \
+                 | tail -n 1)
           if [ -n "$id" ]; then
             gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@"$RUNNER_TEMP/review.md" > /dev/null
           else
