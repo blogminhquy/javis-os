@@ -47,7 +47,8 @@ là merge, không ai đọc diff." Nay mỗi PR có một lượt Claude đọc 
   báo nhầm, ghi dưới tiêu đề `## Review dismissals` trong mô tả PR, mỗi dòng một lỗi kèm lý do. Sửa mô tả là check
   chạy lại, Claude bỏ lỗi đó nếu lý do đúng. Không bịa lý do để qua check.
 - **Check đỏ vì reviewer hỏng** (hết lượt, mạng): bấm chạy lại job, không merge khi chưa có lượt duyệt xanh.
-- **Check xanh kèm cảnh báo "not reviewed"** (thiếu secret, PR từ fork): người merge tự chạy một lượt duyệt bằng
+- **Check xanh kèm cảnh báo "not reviewed"** (thiếu secret, hoặc PR từ fork: cố ý bỏ qua để người lạ không tiêu lượt
+  của chủ repo hay điều khiển model đang cầm token): người merge tự chạy một lượt duyệt bằng
   subagent mới, đọc `REVIEW.md` và diff, rồi dán kết quả vào PR trước khi merge.
 - **PR phát hành của bot** được merge bằng `--admin` ngay lập tức, nên lúc check chạy PR đã đóng và check tự bỏ qua.
   Check không bao giờ né duyệt theo tên nhánh, vì ai có quyền đẩy cũng đặt được tên nhánh.

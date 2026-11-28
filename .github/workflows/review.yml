@@ -56,7 +56,7 @@ jobs:
             echo "PR is $state: nothing left to gate."; run=false
           fi
           if [ "$run" = true ] && [ "$IS_FORK" = "true" ]; then
-            echo "::warning::PR from a fork: GitHub hides secrets, so Claude cannot review it here. Review it by hand before merging (docs/quy-uoc-dev.md)."
+            echo "::warning::PR from a fork: not reviewed here, so strangers cannot spend the owner's quota or steer a model that holds the token. Review it by hand before merging (docs/quy-uoc-dev.md)."
             run=false
           fi
           if [ "$run" = true ] && [ "$HAS_OAUTH" != "true" ] && [ "$HAS_KEY" != "true" ]; then
