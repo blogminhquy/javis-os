@@ -18810,6 +18810,10 @@ async def _start_scheduler():
             kq = conversations.cat_nhom_cu()
             if kq.get("da_xoa") or kq.get("loi"):
                 print("[conversations] cắt nhóm cũ: " + json.dumps(kq, ensure_ascii=False))
+            # 28/11/2026: ciphertext of end-to-end encrypted Zalo chats stored before `zalo_e2ee` becomes a sentence.
+            e2ee = conversations.relabel_e2ee()
+            if e2ee.get("messages"):
+                print("[conversations] zalo e2ee: " + json.dumps(e2ee, ensure_ascii=False))
         import threading as _threading      # main.py không import threading ở đầu file
         _threading.Thread(target=_cat_nhom_cu_nen, daemon=True, name="cat-nhom-cu").start()
     except Exception as e:
