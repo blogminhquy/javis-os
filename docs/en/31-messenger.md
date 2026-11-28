@@ -33,7 +33,11 @@ The same connection on the Facebook Messenger card lets Javis post to the Page: 
 
 ## Post insights (optional)
 
-For Javis to read the reach, saves and clicks of posts and of the Page, tick **Read post insights (reach, saves)** on the form before clicking Log in with Facebook. It asks for the `read_insights` permission; the Meta app must add that permission first, otherwise Facebook refuses the whole login, so the box starts unticked. For a Page already connected, click **New token**, tick it and log in again. The checklist has a **Reads post insights** row saying whether the Page token has the permission.
+For Javis to read the reach, saves and clicks of posts and of the Page, tick **Read post insights (reach, saves)** on the form before clicking Log in with Facebook. It asks for the `read_insights` permission; the Meta app must add that permission first, otherwise Facebook shows `Invalid Scopes: read_insights` and refuses the whole login, so the box starts unticked.
+
+To add it: on developers.facebook.com open your app, go to **Use cases**, pick **Manage everything on your Page**, click **Customize**, find `read_insights` and click **Add**. Then tick the box and log in with Facebook.
+
+For a Page already connected, click **New token**, tick it and log in again. The checklist has a **Reads post insights** row saying whether the Page token has the permission.
 
 ## Page comments (from 0.434.0)
 

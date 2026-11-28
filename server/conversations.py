@@ -592,6 +592,23 @@ def _don_sao_luu_cat_nhom() -> int:
 
 
 
+def customer_wrote(*needles: str) -> bool:
+    """Any customer message in the inbox, on any channel, holds one of `needles` (forms of one link), in its text or
+    in its metadata (a photo a customer sends keeps its link there: `image_url`, `mediaUrl`, a link card). A dedicated
+    bot never sends a web image a customer wrote or sent (bot_images.py): a history read hands those back as a tool
+    result. Scans the whole table on purpose, since a customer can write in one chat and the bot read it from
+    another; it runs only when a bot is about to send a web image."""
+    forms = [str(n) for n in dict.fromkeys(needles) if n]
+    if not forms:
+        return False
+    cond = " OR ".join("instr(text, ?) > 0 OR instr(metadata_json, ?) > 0" for _ in forms)
+    args = [x for f in forms for x in (f, f)]
+    with _lock:
+        row = _conn().execute(f"SELECT 1 FROM messages WHERE sender_type='customer' AND ({cond}) LIMIT 1",
+                              args).fetchone()
+    return row is not None
+
+
 _E2EE_MARK = "zalo_e2ee_relabel_v1"
 
 

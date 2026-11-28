@@ -123,9 +123,9 @@ cfg_p = {"name": "Lan", "agent_slug": "lan", "brain": "b"}
 chatbot_runtime.wire(answer=None, brain_root=lambda b: B,
                      read_agent=lambda br, slug: ({"name": "Lan", "role": "Bán hàng"}, "Trả lời khách."))
 check("prompt dạy Agent cách gửi ảnh ở kênh gửi được file",
-      "GỬI ẢNH" in chatbot_runtime.build_bot_prompt(dict(cfg_p, _kenh_luot="zalo_personal")))
+      "SENDING IMAGES" in chatbot_runtime.build_bot_prompt(dict(cfg_p, _kenh_luot="zalo_personal")))
 check("kênh không gửi được file thì không dạy (khỏi hứa điều không làm được)",
-      "GỬI ẢNH" not in chatbot_runtime.build_bot_prompt(dict(cfg_p, _kenh_luot="zalo")))
+      "SENDING IMAGES" not in chatbot_runtime.build_bot_prompt(dict(cfg_p, _kenh_luot="zalo")))
 
 # ============================================================
 # 3. Zalo cá nhân gửi ảnh thật (MCP và CLI giả)
