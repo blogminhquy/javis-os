@@ -1098,28 +1098,25 @@
             '</div>' +
           '</div>' +
 
-          // 6. Per-chat exceptions (0.172.0): one private chat (e.g. a family member on a personal Zalo nick) gets its
-          // own level and wait, without raising the bot that also answers strangers.
-          // Picked from the chats the inbox knows on the ticked accounts, never typed: each exception carries the
-          // channel account it lives on, so the same id on another account or channel never matches.
+          // 6. Per-chat exceptions (0.172.0; rebuilt 2026-11-28). One private chat (e.g. a family member on a personal Zalo
+          // nick) gets its own level and wait, without raising the bot that also answers strangers. Picked from the chats
+          // the inbox knows on the ticked accounts, never typed: each exception carries the channel account it lives on.
+          // Owner 28/11: nothing may be pre-picked. No dropdown any more: "Add a chat" opens a search with a result list,
+          // one tap on a row adds it (the 21/11 anti-misclick pattern); a saved row does nothing on tap, only its X removes.
           '<div class="cb-sec">' + voiInfo(secH("user", "cb.s_ngoai_le")) +
-            '<div class="cb-pk">' +
-              '<div class="cb-pk-body" id="cbNlList"></div>' +
-              '<div class="cb-pk-add">' +
-                '<input id="cbNlQ" class="cb-pk-q" placeholder="' + esc(window.t("cb2.pk_tim")) + '">' +
-                '<select id="cbNlPick"></select>' +
-                '<button type="button" class="s-btn-ghost" id="cbNlAdd">' + esc(window.t("cb2.pk_them")) + '</button>' +
-              '</div>' +
-            '</div>' +
             infoBody(esc(window.t("cb.hint_ngoai_le"))) +
-          '</div>' +
-
-          // 7. Staff contact (2026-11-26, server/staff_requests.py): the ONE chat the bot asks when only a person knows
-          // the answer. One field, picked from the chats the inbox knows on the ticked personal Zalo / Telegram accounts.
-          '<div class="cb-sec">' + voiInfo(secH("headset", "cb.s_staff")) +
-            '<select id="cbStaff" class="cb-staff" aria-label="' + esc(window.t("cb.s_staff")) + '"></select>' +
-            '<div class="cb-hint" id="cbStaffNote" hidden></div>' +
-            infoBody(esc(window.t("cb.hint_staff"))) +
+            '<div class="cb-nl-list" id="cbNlList"></div>' +
+            '<button type="button" class="s-btn-ghost cb-nl-open" id="cbNlOpen">' + ic("plus") + ' ' +
+              esc(window.t("cb.nl_add")) + '</button>' +
+            '<div class="cb-nl-find" id="cbNlFind" hidden>' +
+              '<div class="cb-nl-bar">' + ic("search") +
+                '<input type="text" id="cbNlQ" class="cb-nl-q" autocomplete="off" enterkeyhint="search" placeholder="' +
+                  esc(window.t("cb.nl_find_ph")) + '" aria-label="' + esc(window.t("cb.nl_find_ph")) + '">' +
+                '<button type="button" class="cb-nl-close" id="cbNlClose" title="' + esc(window.t("cb.nl_close")) +
+                  '" aria-label="' + esc(window.t("cb.nl_close")) + '">' + ic("x") + '</button>' +
+              '</div>' +
+              '<div class="cb-nl-res" id="cbNlRes" role="list"></div>' +
+            '</div>' +
           '</div>' +
 
           // No language picker since 2026-11-15 (owner): the bot answers each customer in the language they write.
@@ -1318,139 +1315,137 @@
       vePk();
     };
 
-    // ---- Per-chat exceptions (0.172.0): rows {account_id, chat_id, ten, muc_quyen, cho_giay}
-    var nlDs = ((b && b.ngoai_le) || []).map(function (e) { return Object.assign({}, e); });
-    var nlChats = [], nlQ = "", nlSeq = 0, nlHen = null;
-    function nlKhoa(e) { return e.account_id + "\n" + e.chat_id; }
-    function nlTenTk(aid) {
+    // ---- Per-chat exceptions (0.172.0, rebuilt 2026-11-28): rows {account_id, chat_id, ten, muc_quyen, cho_giay}
+    var excRows = ((b && b.ngoai_le) || []).map(function (e) { return Object.assign({}, e); });
+    var excChats = [], excQuery = "", excSeq = 0, excTimer = null, excBusy = false, excFlash = "";
+    function excKey(e) { return e.account_id + "\n" + e.chat_id; }
+    function accountName(aid) {
       var a = tkDangChon().filter(function (x) { return x.id === aid; })[0];
       return a ? (a.ten || a.id) : aid;
     }
-    function veNl() {
+    // The saved exceptions. The row itself does nothing: only its X removes, so a stray tap never drops one.
+    function drawExceptions() {
       var list = box.querySelector("#cbNlList");
       var muc = _mucDS.length ? _mucDS : [{ id: "suggest", nhan: window.t("cb.muc_chi_doc") }];
-      list.innerHTML = nlDs.length ? nlDs.map(function (e, i) {
-        return '<div class="cb-pk-li" data-i="' + i + '"><span class="cb-pk-n">' + esc(e.ten || e.chat_id) +
-          ' <small>' + esc(nlTenTk(e.account_id)) + '</small></span>' +
-          '<select class="cb-nl-muc">' + muc.map(function (m) {
-            return '<option value="' + esc(m.id) + '"' + (m.id === e.muc_quyen ? " selected" : "") + '>' + esc(m.nhan) + '</option>';
-          }).join("") + '</select>' +
-          '<input class="cb-nl-cho" type="number" min="0" max="60" style="width:70px" placeholder="' +
-            esc(window.t("cb.ph_nl_cho")) + '" value="' + (e.cho_giay == null ? "" : esc(String(e.cho_giay))) + '">' +
-          '<button type="button" class="s-btn-ghost cb-nl-xoa">' + esc(window.t("cb.nl_bo")) + '</button></div>';
-      }).join("") : '<div class="cb-pk-rong">' + esc(window.t("cb.nl_rong")) + '</div>';
-      list.querySelectorAll(".cb-pk-li").forEach(function (r) {
-        var e = nlDs[+r.dataset.i];
+      list.innerHTML = excRows.map(function (e, i) {
+        var name = e.ten || e.chat_id;
+        return '<div class="cb-nl-row' + (excKey(e) === excFlash ? " is-new" : "") + '" data-i="' + i + '">' +
+          '<div class="cb-nl-top"><span class="cb-nl-who"><span class="cb-nl-name">' + esc(name) + '</span>' +
+            '<small>' + esc(accountName(e.account_id)) + '</small></span>' +
+            '<button type="button" class="cb-nl-x" title="' + esc(window.t("cb.nl_bo_ten", { name: name })) +
+              '" aria-label="' + esc(window.t("cb.nl_bo_ten", { name: name })) + '">' + ic("x") + '</button></div>' +
+          '<div class="cb-nl-ctl">' +
+            '<label class="cb-nl-f"><span>' + esc(window.t("cb.nl_muc")) + '</span><select class="cb-nl-muc">' +
+              muc.map(function (m) {
+                return '<option value="' + esc(m.id) + '"' + (m.id === e.muc_quyen ? " selected" : "") + '>' + esc(m.nhan) + '</option>';
+              }).join("") + '</select></label>' +
+            '<label class="cb-nl-f cb-nl-f-cho"><span>' + esc(window.t("cb.ph_nl_cho")) + '</span>' +
+              '<input class="cb-nl-cho" type="number" min="0" max="60" inputmode="numeric" placeholder="' +
+              esc(window.t("cb.nl_cho_ph")) + '" value="' + (e.cho_giay == null ? "" : esc(String(e.cho_giay))) + '"></label>' +
+          '</div></div>';
+      }).join("");
+      list.hidden = !excRows.length;
+      list.querySelectorAll(".cb-nl-row").forEach(function (r) {
+        var e = excRows[+r.dataset.i];
         r.querySelector(".cb-nl-muc").onchange = function () { e.muc_quyen = this.value; };
         r.querySelector(".cb-nl-cho").oninput = function () {
           var v = this.value.trim();
           e.cho_giay = v === "" ? null : +v;
         };
-        r.querySelector(".cb-nl-xoa").onclick = function () { nlDs.splice(+r.dataset.i, 1); veNl(); veNlPick(); };
+        r.querySelector(".cb-nl-x").onclick = function () {
+          excRows.splice(+r.dataset.i, 1);
+          excFlash = "";
+          drawExceptions();
+          drawExcResults();
+        };
       });
     }
-    function veNlPick() {
-      var co = {};
-      nlDs.forEach(function (e) { co[nlKhoa(e)] = true; });
-      var ds = nlChats.filter(function (c) { return !co[nlKhoa({ account_id: c.tk, chat_id: c.id })]; });
-      box.querySelector("#cbNlPick").innerHTML = ds.length ? ds.map(function (c) {
-        return '<option value="' + esc(c.tk + "\n" + c.id) + '">' + esc((c.ten || c.id) + " · " + nlTenTk(c.tk)) + '</option>';
-      }).join("") : '<option value="">' + esc(window.t("cb2.pk_rong")) + '</option>';
+    // The search results: chats not added yet, each one tap to add (marked with a +).
+    function drawExcResults() {
+      var out = box.querySelector("#cbNlRes");
+      var have = {};
+      excRows.forEach(function (e) { have[excKey(e)] = true; });
+      var ds = excChats.filter(function (c) { return !have[excKey({ account_id: c.tk, chat_id: c.id })]; });
+      var manyAccounts = tkDangChon().length > 1;
+      var emptyText = !tkDangChon().length ? window.t("cb.nl_no_acc")
+        : excBusy ? window.t("cb2.pk_dang_tai")
+        // Chats found but every one is already an exception: say so, not "nobody" or "they must message first".
+        : !ds.length && excChats.length ? window.t(excQuery ? "cb.nl_already" : "cb.nl_all_added")
+        : !ds.length ? (excQuery ? window.t("cb.nl_none_q", { q: excQuery }) : window.t("cb.nl_none")) : "";
+      out.innerHTML = emptyText ? '<div class="cb-nl-empty">' + esc(emptyText) + '</div>' : ds.map(function (c) {
+        var name = c.ten || c.id;
+        var sub = [manyAccounts ? accountName(c.tk) : "", c.luc ? gioNgan(c.luc) : ""].filter(Boolean).join(" · ");
+        return '<div role="listitem"><button type="button" class="cb-nl-hit" data-k="' + esc(c.tk + "\n" + c.id) +
+          '" aria-label="' + esc(window.t("cb.nl_add_ten", { name: name })) + '">' +
+          '<span class="cb-nl-av">' + esc((name.trim()[0] || "?").toUpperCase()) + '</span>' +
+          '<span class="cb-nl-who"><span class="cb-nl-name">' + esc(name) + '</span>' +
+            (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span>' +
+          '<span class="cb-nl-plus">' + ic("plus") + '</span></button></div>';
+      }).join("");
+      out.querySelectorAll(".cb-nl-hit").forEach(function (h) {
+        h.onclick = function () { addException(h.dataset.k); };
+      });
     }
-    async function taiNl() {
+    function addException(k) {
+      var p = String(k || "").split("\n");
+      var c = excChats.filter(function (x) { return x.tk === p[0] && x.id === p[1]; })[0];
+      if (!c || excRows.some(function (e) { return excKey(e) === k; })) return;
+      // A new row starts at the bot's own level (what the form shows now): the owner raises or lowers it on purpose.
+      excRows.push({ account_id: p[0], chat_id: p[1], ten: c.ten && c.ten !== p[1] ? c.ten : "",
+                  muc_quyen: giaTri("cbMuc") || (b && b.muc_quyen) || "suggest", cho_giay: null });
+      excFlash = k;
+      closeExcSearch();
+      drawExceptions();
+      var row = box.querySelector(".cb-nl-row.is-new");
+      if (row && row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
+    }
+    async function loadExcChats() {
+      clearTimeout(excTimer);
       var ids = tkDangChon().map(function (a) { return a.id; }).join(",");
-      var lan = ++nlSeq;
-      if (!ids) { nlChats = []; veNlPick(); return; }
+      var turn = ++excSeq;
+      if (!ids) { excChats = []; excBusy = false; drawExcResults(); return; }
+      if (box.querySelector("#cbNlFind").hidden) return;      // loaded when the search opens
+      excBusy = !excChats.length;
+      if (excBusy) drawExcResults();
       try {
         var d = await api("/chatbots/chats?account_ids=" + encodeURIComponent(ids) +
-          "&chat_type=private&q=" + encodeURIComponent(nlQ) + "&limit=80");
-        if (lan !== nlSeq) return;
+          "&chat_type=private&q=" + encodeURIComponent(excQuery) + "&limit=80");
+        if (turn !== excSeq) return;
         // Private chats only, and only rows the inbox ties to an account: an exception without one never matches.
-        nlChats = (d.chats || []).filter(function (c) { return c.loai === "private" && c.tk; });
-      } catch (e) { if (lan !== nlSeq) return; nlChats = []; }
-      veNlPick();
+        excChats = (d.chats || []).filter(function (c) { return c.loai === "private" && c.tk; });
+      } catch (e) { if (turn !== excSeq) return; excChats = []; }
+      excBusy = false;
+      drawExcResults();
     }
+    function openExcSearch() {
+      box.querySelector("#cbNlFind").hidden = false;
+      box.querySelector("#cbNlOpen").hidden = true;
+      var q = box.querySelector("#cbNlQ");
+      q.value = excQuery = "";
+      excChats = [];
+      loadExcChats();
+      q.focus();
+    }
+    function closeExcSearch() {
+      ++excSeq;
+      clearTimeout(excTimer);
+      box.querySelector("#cbNlFind").hidden = true;
+      box.querySelector("#cbNlOpen").hidden = false;
+    }
+    box.querySelector("#cbNlOpen").onclick = openExcSearch;
+    box.querySelector("#cbNlClose").onclick = function () { closeExcSearch(); box.querySelector("#cbNlOpen").focus(); };
     box.querySelector("#cbNlQ").oninput = function () {
-      nlQ = this.value.trim();
-      clearTimeout(nlHen);
-      nlHen = setTimeout(taiNl, 250);
+      excQuery = this.value.trim();
+      ++excSeq;
+      clearTimeout(excTimer);
+      excTimer = setTimeout(loadExcChats, 250);
     };
-    box.querySelector("#cbNlAdd").onclick = function () {
-      var v = box.querySelector("#cbNlPick").value;
-      if (!v) return;
-      var p = v.split("\n");
-      var c = nlChats.filter(function (x) { return x.tk === p[0] && x.id === p[1]; })[0] || {};
-      // A new row starts at the bot's own level: the owner raises or lowers it on purpose.
-      nlDs.push({ account_id: p[0], chat_id: p[1], ten: c.ten && c.ten !== p[1] ? c.ten : "",
-                  muc_quyen: (b && b.muc_quyen) || "suggest", cho_giay: null });
-      veNl();
-      veNlPick();
+    box.querySelector("#cbNlQ").onkeydown = function (ev) {
+      // Esc closes the search, not the whole form; Enter never submits the form from here.
+      if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); closeExcSearch(); box.querySelector("#cbNlOpen").focus(); }
+      else if (ev.key === "Enter") ev.preventDefault();
     };
-    veNl();
-
-    // ---- Staff contact (2026-11-26): { account_id, chat_id, chat_type, name } or null. The saved chat stays listed even
-    // when the page of chats does not bring it. The server offers `ask_staff` only at Full power, so below that a short
-    // line under the field says why it would not work yet.
-    var STAFF_CHANNELS = ["zalo_personal", "telegram"];
-    var staffCur = (b && b.staff_contact && b.staff_contact.chat_id) ? Object.assign({}, b.staff_contact) : null;
-    var staffChats = [], staffSeq = 0;
-    function staffAccounts() {
-      return tkDangChon().filter(function (a) { return STAFF_CHANNELS.indexOf(a.channel) >= 0; });
-    }
-    function staffKey(aid, cid) { return aid + "\n" + cid; }
-    function drawStaff() {
-      var sel = box.querySelector("#cbStaff");
-      var accs = staffAccounts(), on = {};
-      accs.forEach(function (a) { on[a.id] = true; });
-      var rows = staffChats.filter(function (c) { return on[c.tk]; });
-      var cur = staffCur && on[staffCur.account_id] ? staffKey(staffCur.account_id, staffCur.chat_id) : "";
-      if (cur && !rows.some(function (c) { return staffKey(c.tk, c.id) === cur; })) {
-        rows.unshift({ tk: staffCur.account_id, id: staffCur.chat_id, ten: staffCur.name, loai: staffCur.chat_type });
-      }
-      sel.innerHTML = '<option value="">' + esc(window.t("cb.staff_none")) + '</option>' + rows.map(function (c) {
-        var k = staffKey(c.tk, c.id);
-        var label = (c.ten || c.id) + (c.loai === "group" ? " · " + window.t("cb.staff_group") : "") +
-          (accs.length > 1 ? " · " + nlTenTk(c.tk) : "");
-        return '<option value="' + esc(k) + '"' + (k === cur ? " selected" : "") + '>' + esc(label) + '</option>';
-      }).join("");
-      sel.disabled = !accs.length;
-      drawStaffNote();
-    }
-    function drawStaffNote() {
-      var note = box.querySelector("#cbStaffNote");
-      var msg = !staffAccounts().length ? window.t("cb.staff_no_channel")
-        : (box.querySelector("#cbStaff").value && (giaTri("cbMuc") || "suggest") !== "full") ? window.t("cb.staff_need_full")
-        : "";
-      note.textContent = msg;
-      note.hidden = !msg;
-    }
-    async function loadStaff() {
-      var ids = staffAccounts().map(function (a) { return a.id; }).join(",");
-      var turn = ++staffSeq;
-      if (!ids) { staffChats = []; drawStaff(); return; }
-      try {
-        var d = await api("/chatbots/chats?account_ids=" + encodeURIComponent(ids) + "&limit=200");
-        if (turn !== staffSeq) return;
-        // Only rows the inbox ties to an account: the contact is scoped to the account it lives on.
-        staffChats = (d.chats || []).filter(function (c) { return c.tk; });
-      } catch (e) { if (turn !== staffSeq) return; staffChats = []; }
-      drawStaff();
-    }
-    box.querySelector("#cbStaff").onchange = function () {
-      var v = this.value;
-      if (!v) {
-        staffCur = null;
-      } else {
-        var p = v.split("\n");
-        var c = staffChats.filter(function (x) { return x.tk === p[0] && x.id === p[1]; })[0] ||
-          (staffCur && staffCur.account_id === p[0] && staffCur.chat_id === p[1]
-            ? { ten: staffCur.name, loai: staffCur.chat_type } : {});
-        staffCur = { account_id: p[0], chat_id: p[1], chat_type: c.loai === "group" ? "group" : "private",
-                     name: c.ten && c.ten !== p[1] ? c.ten : "" };
-      }
-      drawStaffNote();
-    };
-    box.querySelectorAll('input[name="cbMuc"]').forEach(function (i) { i.addEventListener("change", drawStaffNote); });
+    drawExceptions();
 
     // ---- Chế độ lên tiếng trong nhóm
     var RW_H = { mention: "cb2.rw_mention_h", auto: "cb2.rw_auto_h", always: "cb2.rw_always_h" };
@@ -1575,12 +1570,11 @@
     // Nối lại sự kiện cho danh sách tài khoản: nó được vẽ lại sau mỗi lần nối kênh mới.
     function noiTK() {
       box.querySelectorAll(".cb-tk-o").forEach(function (n) {
-        n.onchange = function () { apDoiTuong(); veTom(); taiNl(); loadStaff(); };
+        n.onchange = function () { apDoiTuong(); veTom(); loadExcChats(); };
       });
       apDoiTuong();
       veTom();
-      taiNl();
-      loadStaff();
+      loadExcChats();
     }
     noiTK();
 
@@ -1662,15 +1656,15 @@
       if (quiet !== "" && !(/^\d+$/.test(quiet) && +quiet <= 60)) return alert(window.t("cb.quiet_wait_sai"));
       var bell = ((box.querySelector("#cbBellGap") || {}).value || "").trim();
       if (bell !== "" && !(/^\d+$/.test(bell) && +bell <= 240)) return alert(window.t("cb.bell_gap_sai"));
-      if (nlDs.some(function (e) { return e.cho_giay != null && !(e.cho_giay >= 0 && e.cho_giay <= 60 && e.cho_giay % 1 === 0); })) {
+      if (excRows.some(function (e) { return e.cho_giay != null && !(e.cho_giay >= 0 && e.cho_giay <= 60 && e.cho_giay % 1 === 0); })) {
         return alert(window.t("cb.ngoai_le_sai"));
       }
       // Same rule as the server: an exception that RAISES a chat to Can write or Full power needs a conscious yes,
       // and only that yes sends the exception's own flag (`xac_nhan_ngoai_le`), separate from the bot-level one.
       var hang = { suggest: 0, read_docs: 1, auto: 2, full: 3 }, truoc = {};
-      ((sua && b.ngoai_le) || []).forEach(function (e) { truoc[nlKhoa(e)] = e.muc_quyen; });
-      var nang = nlDs.filter(function (e) {
-        var k = nlKhoa(e);
+      ((sua && b.ngoai_le) || []).forEach(function (e) { truoc[excKey(e)] = e.muc_quyen; });
+      var nang = excRows.filter(function (e) {
+        var k = excKey(e);
         return hang[e.muc_quyen] >= 2 && hang[e.muc_quyen] > (truoc[k] in hang ? hang[truoc[k]] : -1);
       });
       if (nang.length && !confirm(window.t("cb.xn_ngoai_le", {
@@ -1684,15 +1678,12 @@
                     reply_when: co ? (the === "auto" ? "auto" : (giaTri("cbRw") || "mention")) : "mention",
                     account_ids: ids.join(","),
                     gio_truc: gioTu ? JSON.stringify({ tu: gioTu, den: gioDen }) : "",
-                    nhuong_tay_phut: nhuong, bell_gap_min: bell, ngoai_le: JSON.stringify(nlDs),
+                    nhuong_tay_phut: nhuong, bell_gap_min: bell, ngoai_le: JSON.stringify(excRows),
                     nhan_ket_ban: coZaloCaNhan() && (box.querySelector("#cbNhanKetBan") || {}).checked ? "1" : "0",
                     group_typing: (box.querySelector("#cbGroupTyping") || {}).checked === false ? "0" : "1",
                     escalate_private: (box.querySelector("#cbEscPrivate") || {}).checked ? "1" : "0",
                     quiet_wait_s: quiet,
-                    skip_labels: coZaloCaNhan() ? tagLuu() : "[]",
-                    // The contact only on an account still ticked; "" clears it (2026-11-26).
-                    staff_contact: staffCur && staffAccounts().some(function (a) { return a.id === staffCur.account_id; })
-                      ? JSON.stringify(staffCur) : "" };
+                    skip_labels: coZaloCaNhan() ? tagLuu() : "[]" };
       if (nang.length) chung.xac_nhan_ngoai_le = "1";
       try {
         if (sua) {

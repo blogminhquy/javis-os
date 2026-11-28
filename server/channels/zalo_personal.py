@@ -993,12 +993,6 @@ class Transport:
         }
         if is_reaction:
             meta["reaction"] = True
-        # Text of the message this one quotes (2026-11-26): a staff member replying to the bot's question names its
-        # request code there (staff_requests.pick). A quoted photo carries a JSON payload, not words: left out.
-        rt = md0.get("replyTo") if isinstance(md0.get("replyTo"), dict) else {}
-        quoted = str(rt.get("text") or rt.get("msg") or "").strip()
-        if quoted and not quoted.startswith("{"):
-            meta["reply_to_text"] = quoted[:1000]
         # Labels the owner put on this chat in the Zalo app (0.281.0, javis-zalo 1.6.0): the bot can skip chats tagged
         # e.g. "Gia đình" (`chatbot_runtime._ly_do_im`) and sees the tags in its prompt. Cached per connection, so this
         # await costs nothing on most messages; any failure leaves the list empty and the turn runs as before.

@@ -532,29 +532,21 @@ def ap_ngoai_le(cfg: dict, meta: Optional[dict]) -> dict:
     return dict(cfg, muc_quyen=e["muc_quyen"], _ngoai_le=dict(e), _muc_bot=cfg.get("muc_quyen"))
 
 
-def clean_staff_contact(v: Any) -> dict:
-    """The bot's staff contact ("Người phụ trách", 2026-11-26): ONE chat on one of the bot's channel accounts that the
-    bot asks when a customer wants something only a person knows (see staff_requests.py).
-
-    Accepts a dict or its JSON text (what the dashboard form sends). Returns {"account_id", "chat_id", "chat_type",
-    "name"}, or {} for none: an empty value, an unreadable one, or one without both ids. Scoped to the account like a
-    per-chat exception, so the same chat id on another account or channel never counts."""
-    if isinstance(v, str):
-        t = v.strip()
-        if not t:
-            return {}
+def drop_staff_request_store() -> bool:
+    """Delete the store of the removed staff contact feature (`staff_requests.sqlite3`, 2026-11-26 to 2026-11-28). It
+    held customers' questions and staff answers that nothing reads any more, so it goes rather than staying on disk
+    for good. True when a file was removed."""
+    gone = False
+    for suffix in ("", "-wal", "-shm", "-journal"):
+        p = STATE_DIR / f"staff_requests.sqlite3{suffix}"
         try:
-            v = json.loads(t)
-        except ValueError:
-            return {}
-    if not isinstance(v, dict):
-        return {}
-    aid, cid = _clean_ma(v.get("account_id")), _clean_ma(v.get("chat_id"))
-    if not aid or not cid:
-        return {}
-    return {"account_id": aid, "chat_id": cid,
-            "chat_type": "group" if str(v.get("chat_type") or "") == "group" else "private",
-            "name": " ".join(str(v.get("name") or "").split())[:60]}
+            p.unlink()
+            gone = True
+        except FileNotFoundError:
+            pass
+        except OSError as e:
+            print(f"[chatbot_store] staff request store not removed: {type(e).__name__}: {e}", flush=True)
+    return gone
 
 
 def clean_bat(v: Any) -> bool:
@@ -752,8 +744,8 @@ def _public(b: dict) -> dict:
     out["gio_truc"] = parse_gio_truc(out.get("gio_truc"))[0] or {}
     # Per-chat exceptions (0.172.0). Missing key = old record = none; a broken value also reads as none (narrowest).
     out["ngoai_le"] = parse_ngoai_le(out.get("ngoai_le"))[0] or []
-    # Staff contact (2026-11-26). Missing key = old record = none: nothing changes for that bot.
-    out["staff_contact"] = clean_staff_contact(out.get("staff_contact"))
+    # The staff contact ("Người phụ trách", 2026-11-26) was removed on 2026-11-28: an old record's key is dropped here.
+    out.pop("staff_contact", None)
     # Bộ phán xử hội thoại nhóm (0.65.0). Thiếu khoá = bản ghi cũ = tắt; có khoá mà hỏng = phía hẹp nhất.
     import chatbot_reply_policy
     out["reply_policy"] = chatbot_reply_policy.normalize_config(out.get("reply_policy"))
@@ -1134,8 +1126,6 @@ def create_bot(data: dict) -> tuple[Optional[str], str]:
             "quiet_wait_s": clean_quiet_wait(data.get("quiet_wait_s")),
             # Zalo chat labels the bot stays out of (0.281.0, personal Zalo only), e.g. family and friends.
             "skip_labels": clean_skip_labels(data.get("skip_labels")),
-            # Staff contact the bot asks when only a person knows the answer (2026-11-26, staff_requests.py).
-            "staff_contact": clean_staff_contact(data.get("staff_contact")),
             "handoff_to": str(data.get("handoff_to") or "").strip(),
             "created_at": _now(),
             "updated_at": _now(),
@@ -1180,7 +1170,7 @@ _PATCHABLE = ("name", "icon", "groups", "people", "audience", "reply_when", "han
               "agent_slug", "agent_brain", "brain", "bot_username", "token", "enabled",
               "nguon_tra_loi", "muc_quyen", "ngon_ngu", "account_ids", "reply_policy", "gio_truc",
               "nhuong_tay_phut", "ngoai_le", "nhan_ket_ban", "skip_labels", "blocked",
-              "group_typing", "bell_gap_min", "staff_contact", "escalate_private", "quiet_wait_s")
+              "group_typing", "bell_gap_min", "escalate_private", "quiet_wait_s")
 # `channel` CỐ Ý đứng ngoài danh sách trắng. Đổi kênh của một bot đã tạo là đổi sang một CON
 # BOT KHÁC: token khác, danh tính khác, khách khác, và cả đống id nhóm đang lưu lập tức vô
 # nghĩa. Cho sửa tại chỗ thì bản ghi còn nguyên tên và lịch sử của con cũ trong khi nó đã là
@@ -1309,10 +1299,6 @@ def update_bot(bot_id: str, patch: dict) -> tuple[bool, str]:
                             b["quiet_wait_s"] = n
                 elif k == "skip_labels":
                     b["skip_labels"] = clean_skip_labels(v)
-                elif k == "staff_contact":
-                    # An empty or unreadable value clears it: the form sends "" when the owner picks "nobody".
-                    b["staff_contact"] = clean_staff_contact(v)
-
                 elif k == "handoff_to":
                     b["handoff_to"] = str(v or "").strip()
                 elif k == "agent_slug":
@@ -1399,12 +1385,6 @@ def delete_bot(bot_id: str) -> tuple[bool, str]:
         _save(d)
     _xoa_du_lieu_phan_xu(bot_id)
     _remove_learned_mirror(gone[0])
-    try:
-        # Questions the bot asked its staff hold customers' words: they go with the bot (2026-11-26).
-        import staff_requests
-        staff_requests.delete_bot(bot_id)
-    except Exception:      # noqa: BLE001 - cleaning must not fail the delete
-        pass
     return True, ""
 
 

@@ -179,6 +179,13 @@ Chủ thử trên iPhone, iPad và app thêm vào màn hình chính, thường g
   không". Mục đã chọn là một dòng KHÔNG bấm được, chỉ nút X ở cuối dòng mới bỏ; mục chưa chọn có dấu cộng, chạm một lần
   là thêm. Không dùng kiểu "chạm cả dòng để bật tắt dấu tích": dấu tích trông như chọn một, và một lần chạm lạc là mất
   mục. Thêm và bỏ là hai yêu cầu riêng, cái này lỗi không được hoàn lại cái kia.
+- **Ô chọn không bao giờ chọn sẵn một người hay một mục** (28/11, Ngoại lệ theo cuộc chat của form bot: "cơ cấu lại
+  ngoại lệ để không chọn nhầm, và khung tìm kiếm cũng phải thiết kế lại để dễ làm việc hơn"). Bỏ kiểu hộp thả xuống
+  luôn hiện sẵn dòng đầu cạnh nút Thêm: nhìn như đã chọn rồi, bấm Thêm là thêm nhầm. Thay bằng nút "+ Thêm ..." mở ô
+  tìm (chữ 16px, có icon kính lúp, nút X đóng, Esc đóng) và danh sách kết quả: mỗi dòng có chữ cái đầu, tên, một dòng
+  phụ (tài khoản khi có nhiều, lần nhắn gần nhất) và dấu cộng; chạm một lần là thêm rồi ô tìm tự đóng, dòng mới hiện ở
+  trên với viền màu nhấn. Ô tìm dùng `type="text"`, không `type="search"`: trình duyệt tự vẽ thêm một dấu X thứ hai.
+  Mẫu ở `chatbots.js`, `drawExcResults`.
 - **Việc bị chặn vì sẽ mất dữ liệu thì hỏi ngay tại dòng đó,** hai nút: giữ lại, hoặc vẫn làm (đỏ, nói rõ mất gì). Không
   để một câu lỗi ở cuối bảng rồi hết đường đi.
 - **Ô tích có hiệu lực ngay,** không bắt bấm Lưu riêng.
