@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.661.1] - 2026-11-28
+### Cải thiện
+- **Tab Lịch sử và Công việc có chấm đỏ.** Lịch sử có chấm khi cuộc chat khác của cộng sự còn tin chưa đọc, Công việc có chấm khi có việc cần bạn.
+### Sửa lỗi
+- **Thẻ hiện ra khi rê chuột lên avatar không còn số thừa ở góc dưới.** Số tin chưa đọc vẫn nằm trên avatar ở cột.
+
 ## [0.661.0] - 2026-11-28
 ### Cải thiện
 - **Kết nối Claude giờ làm 2 bước liền nhau.** Bước 1 đăng nhập claude.ai đầy đủ, nên Gmail, Lịch, Drive... đã thêm trên claude.ai chạy được ngay. Bước 2 tự hiện ra để lấy token dài hạn làm dự phòng, lúc này claude.ai đã đăng nhập sẵn nên chỉ cần bấm Authorize.

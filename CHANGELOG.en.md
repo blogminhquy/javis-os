@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.661.1] - 2026-11-28
+### Improved
+- **History and Jobs tabs show a red dot.** History when another chat of the partner has unread replies, Jobs when a job needs you.
+### Fixed
+- **The card shown on hovering an avatar no longer has a stray number under its corner.** The unread count stays on the avatar in the strip.
+
 ## [0.661.0] - 2026-11-28
 ### Improved
 - **Connect Claude now does two steps in a row.** Step 1 is the full claude.ai sign-in, so the Gmail, Calendar, Drive... added on claude.ai work right away. Step 2 follows on its own to get the long-lived token as the backup; claude.ai is already signed in by then, so it is one click on Authorize.
