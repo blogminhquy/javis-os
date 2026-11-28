@@ -107,7 +107,7 @@ jobs:
           gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json body --jq .body > "$RUNNER_TEMP/body.txt"
           set +e
           python base/tools/review_pr.py --repo pr --rules base/REVIEW.md --base "origin/$BASE_REF" \
-            --title "$(cat "$RUNNER_TEMP/title.txt")" --body-file "$RUNNER_TEMP/body.txt" --out "$RUNNER_TEMP/review.md"
+            --title-file "$RUNNER_TEMP/title.txt" --body-file "$RUNNER_TEMP/body.txt" --out "$RUNNER_TEMP/review.md"
           code=$?
           set -e
           echo "code=$code" >> "$GITHUB_OUTPUT"

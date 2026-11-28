@@ -60,7 +60,7 @@ REVIEW_SCHEMA = {
                     "severity": {"type": "string", "enum": list(SEVERITIES)},
                     "file": {"type": "string"},
                     "line": {"type": "integer"},
-                    "title": {"type": "string"},
+                    "title": {"type": "string", "minLength": 1},
                     "detail": {"type": "string"},
                     "failure_scenario": {"type": "string"},
                     "rule": {"type": "string"},
@@ -182,9 +182,14 @@ def normalize_findings(findings: list) -> list[dict]:
         if not isinstance(item, dict):
             continue
         severity = str(item.get("severity", "")).strip().lower()
-        if severity not in SEVERITIES or not str(item.get("title", "")).strip():
+        if severity not in SEVERITIES:
             continue
-        clean.append({**item, "severity": severity})
+        title = str(item.get("title") or "").strip() or str(item.get("detail") or "").strip()[:80]
+        if not title:
+            if severity != "important":
+                continue
+            title = "Untitled important finding"  # a gate must not pass because a title went missing
+        clean.append({**item, "severity": severity, "title": title})
     important = [f for f in clean if f["severity"] == "important"]
     nits = [f for f in clean if f["severity"] == "nit"][:MAX_NITS]
     return important + nits
@@ -253,6 +258,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--base", default="origin/main", help="base ref to diff against")
     parser.add_argument("--title", default="", help="PR title")
+    parser.add_argument("--title-file", help="file holding the PR title (safe for titles starting with '-')")
     parser.add_argument("--body-file", help="file holding the PR description")
     parser.add_argument("--out", required=True, help="where to write the comment (markdown)")
     parser.add_argument("--model", default=os.environ.get("REVIEW_MODEL", ""), help="model alias or id")
@@ -292,7 +298,10 @@ def _review(args: argparse.Namespace, out: Path) -> int:
         print(f"review could not start: {exc}", file=sys.stderr)
         return 2
 
-    prompt = build_prompt(review_rules, args.title, body, files, diff, left_out)
+    title = args.title
+    if args.title_file:
+        title = Path(args.title_file).read_text(encoding="utf-8", errors="replace")
+    prompt = build_prompt(review_rules, title, body, files, diff, left_out)
     if args.print_prompt:
         print(prompt)
         return 0

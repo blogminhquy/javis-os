@@ -106,12 +106,14 @@ check("no dismissals heading gives empty text", review_pr.extract_dismissals("##
 many = [{"severity": "nit", "file": "a.py", "title": f"n{i}", "detail": "d"} for i in range(9)]
 many.insert(4, {"severity": "IMPORTANT", "file": "b.py", "title": "bug", "detail": "d"})
 many.append({"severity": "blocker", "file": "c.py", "title": "bad severity", "detail": "d"})
-many.append({"severity": "nit", "file": "c.py", "title": "", "detail": "no title"})
+many.append({"severity": "nit", "file": "c.py", "title": "", "detail": ""})
 norm = review_pr.normalize_findings(many)
+untitled = review_pr.normalize_findings([{"severity": "important", "file": "a.py", "title": "", "detail": ""}])
+check("an important finding without a title still blocks", len(untitled) == 1 and untitled[0]["title"])
 check("important comes first", norm[0]["title"] == "bug" and norm[0]["severity"] == "important")
 check(f"nits capped at {review_pr.MAX_NITS}",
       sum(1 for f in norm if f["severity"] == "nit") == review_pr.MAX_NITS)
-check("unknown severity and empty title are dropped", len(norm) == 1 + review_pr.MAX_NITS)
+check("unknown severity and an empty nit are dropped", len(norm) == 1 + review_pr.MAX_NITS)
 
 try:
     review_pr.parse_reviewer_output(json.dumps({"is_error": True, "result": "rate limited"}))
@@ -214,6 +216,7 @@ check("workflow skips fork PRs (no strangers on the owner's quota)", "IS_FORK" i
 check("workflow pins the Claude Code CLI", "@anthropic-ai/claude-code@2." in wf)
 check("workflow can only comment, not push", "contents: read" in wf and "contents: write" not in wf)
 check("workflow re-reads the PR body (dismissals after a re-run)", "--json body" in wf)
+check("title goes through a file, so '-WIP' cannot look like an option", "--title-file" in wf)
 check("workflow fails on exit 1 and on reviewer failure", "1) echo" in wf and "*) echo" in wf)
 check("workflow never skips by branch name", "head_ref" not in wf and "release-bot/*" not in wf)
 check("workflow skips only PRs that are no longer open", "--json state" in wf and '"OPEN"' in wf)
