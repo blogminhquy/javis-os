@@ -5419,14 +5419,10 @@
       el.querySelector("#cliRecheck").onclick = () => refreshClaudeCard(el, true);
       return;
     }
-    // KHÔNG hỏi được KHÁC hẳn "chưa đăng nhập", và trước bản này hai thứ đó vẽ y như nhau: một
-    // lần hết giờ (hay gặp lúc đổi Main Model, khi trang cùng lúc gọi mấy tiến trình con) là
-    // thẻ bày ra nút Đăng nhập, người dùng tưởng mất tài khoản rồi đi nối lại - trong khi
-    // chẳng có gì mất cả (chủ repo báo 2026-08-13). Chưa biết thì nói là chưa biết.
     const inOrd = !!(act.closest && act.closest(".ord-card"));
     const box = (mode) => {
       act.innerHTML = `<div class="prov-tok" id="cliTok">${claudeTokenBox(d, mode, inOrd)}</div>`;
-      bindClaudeToken(el);
+      bindClaudeToken(el, d, mode);
     };
     // A machine still on an Anthropic API key here (before 22/11/2026): its choice above says what runs.
     if (d.auth_mode === "api_key") {
@@ -5456,8 +5452,7 @@
       return;
     }
     if (d.connected) {
-      // Still on the CLI's own sign-in (before 22/11/2026): it keeps running until it runs out; one button moves it
-      // to a long-lived token so it is not signed out midway.
+      // On the CLI's own sign-in with no token behind it: one button adds the token.
       st.className = "prov-status on";
       st.textContent = t("models.st_connected") + acctLine("anthropic-cli", [d.email, d.plan])
         + (d.stale ? " · " + t("models.st_stale") : "");
@@ -5542,14 +5537,15 @@
   }
 
   // ---- Long-lived Claude token (2026-11-22): `claude setup-token` run by Javis, or a token pasted ----
-  // Owner's report: the plan's sign-in "reached its time limit" and every bot and job stopped. A one-year token is
-  // Anthropic's own answer for unattended runs; the card gets one with a link and a code, like Sign in with Claude.
-  // `mode`: "gate" (not connected: the one way in), "saved" (runs on the token), "switch" (still on the old sign-in).
-  // `d`: /claude/status. `inOrd`: the card sits in the usage order, whose own row already has Disconnect.
+  // `mode`: "gate" (not connected), "saved" (a token saved), "switch" (signed in, no token). `d`: /claude/status.
+  // `inOrd`: the card sits in the usage order, whose own row already has Disconnect.
   function claudeTokenBox(d, mode, inOrd) {
     const tk = d.auth_token || {};
     const auto = d.auth_token_auto !== false;
-    const help = infoBody(`${esc(t(mode === "switch" ? "models.tok_switch_info" : "models.tok_info"))}
+    // 2026-11-28: full sign-in first, the token as its backup (server: claude_auth.login_then_token)
+    const first = d.auth_login_first === true;
+    const help = infoBody(`${esc(t(mode === "switch" ? (first ? "models.tok_backup_info" : "models.tok_switch_info")
+      : first && mode === "gate" ? "models.tok_first_info" : "models.tok_info"))}
       <div class="prov-cmd"><code>claude setup-token</code></div>
       <div>${esc(t("models.tok_info_plan"))}</div>`);
     const paste = `<div class="prov-action prov-code" id="cliTokPaste"${auto ? " hidden" : ""}>
@@ -5567,8 +5563,7 @@
       const warn = !!tk.expires_at && (tk.expired || (tk.days_left || 0) <= 14);
       const when = !tk.expires_at ? "" : tk.expired ? t("models.tok_expired")
         : t("models.tok_until", { ngay: day, n: Math.max(0, tk.days_left || 0) });
-      // 2026-11-26: a token cannot load the connectors added on claude.ai (Gmail, Calendar, Drive...); the machine's
-      // own claude.ai sign-in can. With one, turns run on it and the token is the backup; without, one button signs in.
+      // 2026-11-26: only the full sign-in carries claude.ai connectors; with one it runs, the token is its backup.
       const conn = d.auth_connectors === true;
       const connRow = d.auth_connectors === undefined ? "" : `<div class="prov-tok-row${conn ? "" : " warn"}">${ic(conn ? "plug" : "unplug")}
           <span>${esc(t(conn ? "models.conn_on" : "models.conn_off"))}</span></div>`;
@@ -5585,9 +5580,11 @@
         <div id="cliTokMsg" class="prov-msg"></div>`;
     }
     if (mode === "switch") {
-      return `<div class="prov-action">
-          ${auto ? `<button class="gcard-btn ghost" type="button" data-tok-get="1">${esc(t("models.tok_switch"))}</button>` : pasteBtn}
-          ${infoBtn()}${disc}
+      // first: signed in, no token behind it (Later on step 2): amber row, one button for the token
+      return `${first ? `<div class="prov-tok-row warn">${ic("triangle-alert")}<span>${esc(t("models.tok_backup_off"))}</span>${infoBtn()}</div>` : ""}
+        <div class="prov-action">
+          ${auto ? `<button class="gcard-btn${first ? "" : " ghost"}" type="button" data-tok-get="1">${esc(t(first ? "models.tok_backup_btn" : "models.tok_switch"))}</button>` : pasteBtn}
+          ${first ? pasteBtn : infoBtn()}${disc}
         </div>
         ${help}
         ${paste}
@@ -5603,7 +5600,7 @@
       <div id="cliTokMsg" class="prov-msg">${d.error ? Icons.warn(d.error) : ""}</div>`;
   }
 
-  function bindClaudeToken(el) {
+  function bindClaudeToken(el, d, mode) {
     const box = el.querySelector("#cliTok");
     if (!box) return;
     const msg = () => box.querySelector("#cliTokMsg");
@@ -5646,24 +5643,26 @@
       const name = takeAcctName(el, "anthropic-cli");
       if (name === null) return;
       try { await savePlanName("anthropic-cli", name); } catch (e) {}
-      startClaudeToken(el, box);
+      startClaudeToken(el, box, mode === "gate" && d.auth_login_first === true ? "first" : "token");
     };
     const connBtn = box.querySelector("[data-conn-login]");
     if (connBtn) connBtn.onclick = () => startClaudeToken(el, box, "login");
   }
 
-  // `flow`: "token" runs `claude setup-token` (a one-year token); "login" runs `claude auth login` (2026-11-26), the
-  // full claude.ai sign-in that carries the connectors, kept next to the token as its first choice.
+  // `flow`: "token" runs `claude setup-token` (one-year token); "login" `claude auth login` (claude.ai connectors).
   const CLAUDE_FLOWS = {
     token: { start: "/claude/token/start", poll: "/claude/token/poll", code: "/claude/token/code", s1: "models.tok_s1",
              done: (d) => !!(d && d.token) },
     login: { start: "/claude/login-start", poll: "/claude/login-poll", code: "/claude/login-code", s1: "models.conn_s1",
              done: (d) => !!(d && d.connected) },
   };
+  // 2026-11-28 (owner): Connect Claude = full sign-in, then the token (claude.ai already signed in: one Authorize)
+  CLAUDE_FLOWS.first = { ...CLAUDE_FLOWS.login, s1: "models.conn_s1_first", step: "models.tok_step1", next: "backup" };
+  CLAUDE_FLOWS.backup = { ...CLAUDE_FLOWS.token, s1: "models.tok_s1_backup", step: "models.tok_step2", later: true };
 
   async function startClaudeToken(el, box, flow) {
     const F = CLAUDE_FLOWS[flow] || CLAUDE_FLOWS.token;
-    const m0 = box.querySelector("#cliTokMsg");
+    const m0 = box.querySelector("#cliTokMsg") || box.querySelector("#cliTokMsg2");
     if (m0) m0.textContent = t("models.getting_link");
     let r;
     try { r = await (await fetch(F.start, { method: "POST" })).json(); }
@@ -5671,6 +5670,7 @@
     if (!r || !r.ok) { if (m0) m0.innerHTML = Icons.warn((r && r.error) || t("models.cant_start")); return; }
     box.innerHTML = `
       <div class="prov-note" style="line-height:1.7">
+        ${F.step ? `<b>${esc(t(F.step))}</b><br>` : ""}
         <b>1)</b> ${esc(t(F.s1))}<br>
         <a href="${esc(safeHref(r.url))}" target="_blank" rel="noopener" style="color:var(--link-ink);word-break:break-all">${esc(r.url || t("models.no_link"))}</a><br>
         <b>2)</b> ${esc(t("models.cli_s2"))}
@@ -5679,6 +5679,7 @@
           <input class="js-input" id="cliTokCode" placeholder="${esc(t("models.code_ph"))}"
             autocomplete="one-time-code" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
           <button class="gcard-btn" type="button" id="cliTokCodeBtn">${esc(t("models.code_send"))}</button>
+          ${F.later ? `<button class="gcard-btn ghost" type="button" id="cliTokLater">${esc(t("models.tok_later"))}</button>` : ""}
         </div>
         <span id="cliTokMsg2" class="gcard-meta"></span>
       </div>`;
@@ -5686,6 +5687,7 @@
     const ci = box.querySelector("#cliTokCode"), cb = box.querySelector("#cliTokCodeBtn");
     let stopped = false, busy = false, timer = 0;
     const t0 = Date.now();
+    const finish = () => { if (F.next) startClaudeToken(el, box, F.next); else renderModelsCloudTab(el); };
     // On a machine with a browser the command finishes by itself after the sign-in (the page shows no code, owner
     // report 02/11/2026), so the card asks the command itself, and asks again the moment the owner comes back here.
     const stop = () => {
@@ -5700,7 +5702,7 @@
       let d = null; try { d = await (await fetch(F.poll)).json(); } catch (e) {}
       busy = false;
       if (stopped) return;
-      if (F.done(d)) { stop(); renderModelsCloudTab(el); return; }
+      if (F.done(d)) { stop(); finish(); return; }
       if (d && d.ended) { stop(); if (m2) m2.innerHTML = Icons.warn(d.error || t("models.login_incomplete")); return; }
       timer = setTimeout(poll, 2500);
     };
@@ -5710,6 +5712,8 @@
     timer = setTimeout(poll, 2500);
     const link = box.querySelector("a[href]");
     if (link && ci) link.addEventListener("click", () => setTimeout(() => ci.focus(), 300));
+    const later = box.querySelector("#cliTokLater");
+    if (later) later.onclick = () => { stop(); renderModelsCloudTab(el); };
     if (ci && cb) ci.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); cb.click(); } });
     if (cb) cb.onclick = async () => {
       const code = ((ci && ci.value) || "").replace(/\s+/g, "");
@@ -5722,7 +5726,7 @@
       try { rr = await (await fetch(F.code, { method: "POST", body: fd })).json(); }
       catch (e) { cb.disabled = false; if (m2) m2.textContent = t("common.net_err"); return; }
       cb.disabled = false;
-      if (rr && rr.ok) { stop(); renderModelsCloudTab(el); return; }
+      if (rr && rr.ok) { stop(); finish(); return; }
       // After a refused code Claude wants a fresh sign-in, so the way on is a new link, right under the reason.
       if (m2) {
         m2.innerHTML = Icons.warn((rr && rr.error) || t("models.code_wrong"))

@@ -227,6 +227,68 @@ def token_took_over(now: float = None, within: float = 120.0) -> bool:
     return bool(at) and 0 <= now - at <= within and login_dead()
 
 
+# ---- Connect Claude: the full sign-in first, the token second (owner, 2026-11-28) ----
+# Owner that day: "keep both, but sign in fully first and get the token after". The full login is what the turns run
+# on (connectors), so it comes first; the claude.ai page is then already signed in, and the token step is one click on
+# Authorize. One sign-in cannot give both: Anthropic issues a setup-token with `user:inference` only (above).
+BACKUP_REMIND_AFTER_S = 15 * 60
+
+
+def login_then_token(platform: str = None) -> bool:
+    """Whether Connect Claude runs the full sign-in first and the token second. False on a Mac (the login lives in
+    the Keychain, Javis cannot see its scopes, so the token is the one way in, as before) and where `setup-token`
+    cannot run from the card (no pseudo-terminal: Windows, where the token is pasted)."""
+    import sys
+    if (sys.platform if platform is None else platform) == "darwin":
+        return False
+    try:
+        import claude_setup_token
+        return claude_setup_token.supported()
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def backup_missing(settings: dict = None) -> bool:
+    """Turns run on the machine's own connector-capable login and no long-lived token stands behind it: the day the
+    login runs out, bots and background work stop (the 2026-11-22 report). Read from the file, never a token. An
+    API-key choice is left alone even with the key blank: that card has no token button to point at."""
+    s = settings if settings is not None else cfgmod.read_settings()
+    if che_do(s) == API_KEY or oauth_token(s):
+        return False
+    return login_connectors()
+
+
+# The bell's state lives in settings (model.claude_backup_since / claude_backup_reminded), not in the login file: the CLI
+# rewrites that file on every access-token refresh (claude_token_gate.py), so a key or a timer read from it would ring
+# again after each refresh. `since` is set by the card's sign-in, or by the first probe that finds the backup missing.
+BACKUP_SINCE = "claude_backup_since"
+BACKUP_REMINDED = "claude_backup_reminded"
+
+
+def backup_remind_key(settings: dict = None, now: float = None) -> str:
+    """The bell's dedup key for the one "no backup token" notice, or "" when it is not due: already sent, a token
+    saved, no `since` yet, or less than BACKUP_REMIND_AFTER_S since it (the owner may still be on step 2). Only where
+    the card has the button the notice names (login_then_token)."""
+    import time
+    s = settings if settings is not None else cfgmod.read_settings()
+    m = s.get("model") or {}
+    if m.get(BACKUP_REMINDED) or not login_then_token() or not backup_missing(s):
+        return ""
+    since = float(m.get(BACKUP_SINCE) or 0)
+    if not since or (time.time() if now is None else now) - since < BACKUP_REMIND_AFTER_S:
+        return ""
+    return f"claude-no-backup:{int(since)}"
+
+
+def backup_state_reset(model: dict, since: float = 0) -> None:
+    """A new sign-in on the card (`since` = now) or a token saved / a disconnect (0): the bell may ring once again."""
+    model.pop(BACKUP_REMINDED, None)
+    if since:
+        model[BACKUP_SINCE] = int(since)
+    else:
+        model.pop(BACKUP_SINCE, None)
+
+
 def runs_on(settings: dict = None) -> str:
     """What account 1's turns run on right now: "login", "token" or "api_key"."""
     s = settings if settings is not None else cfgmod.read_settings()

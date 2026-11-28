@@ -6769,6 +6769,8 @@ def claude_status(refresh: bool = False):
     try:
         d["auth_runs_on"] = claude_auth.runs_on()
         d["auth_connectors"] = d["auth_runs_on"] == "login"
+        # 2026-11-28 (owner): Connect Claude signs in fully first, then adds the token as the backup.
+        d["auth_login_first"] = claude_auth.login_then_token()
     except Exception as e:  # noqa: BLE001 - the card still draws without the line
         print(f"[claude status] connectors: {type(e).__name__}: {e}", file=sys.stderr)
     return d
@@ -7385,6 +7387,12 @@ def claude_login_code(code: str = Form("")):
 def _claude_main_signed_in():
     """The main Claude account just signed in, by a pasted code or in the browser on its own."""
     claude_cli._LOGIN["finalized"] = True
+    try:   # 2026-11-28: the "no backup token" bell counts from this sign-in, and may ring once for it
+        cfg = cfgmod.read_settings()
+        claude_auth.backup_state_reset(cfg.setdefault("model", {}), since=time.time())
+        cfgmod.write_settings(cfg)
+    except Exception as e:  # noqa: BLE001 - the sign-in itself already succeeded
+        print(f"[claude login] backup state: {type(e).__name__}: {e}", file=sys.stderr)
     warm_pool.POOL.drop_kind("claude")   # 0.387.0: a warm `claude` keeps the login it started with
     # Vừa đăng nhập xong: đèn báo não phải xanh NGAY, không chờ vòng probe 10 phút
     # (banner 'chưa kết nối Model AI' treo sau khi đã kết nối là lỗi khách báo 27/08).
@@ -7433,6 +7441,7 @@ def _claude_token_save(raw) -> dict:
     m["claude_oauth_token"] = tok
     m["claude_oauth_token_at"] = int(time.time())
     m["claude_auth"] = claude_auth.TOKEN
+    claude_auth.backup_state_reset(m)
     cfgmod.write_settings(cfg)
     claude_cli.auth_quen_cache()
     warm_pool.POOL.drop_kind("claude")
@@ -7480,6 +7489,43 @@ def _claude_account_tokens_soon() -> None:
             dedup=f"claude-token-soon:{a['id']}:{time.strftime('%Y-%m-%d')}")
 
 
+def _claude_backup_soon() -> None:
+    """Connect Claude signs in fully first and adds the token second (owner, 2026-11-28). An owner who stopped after
+    step 1 runs on a login with nothing behind it: one bell notice per sign-in, a while after it, says how to add the
+    token. Called by connect_health's probe, which runs every few minutes. Settings are written only when the state
+    changes (first seen missing, notice sent), never on a plain probe."""
+    cfg = cfgmod.read_settings()
+    m = cfg.get("model") or {}
+    if not claude_auth.login_then_token() or not claude_auth.backup_missing(cfg) or m.get(claude_auth.BACKUP_REMINDED):
+        return
+    if not m.get(claude_auth.BACKUP_SINCE):   # a login from before this check (or made in a terminal): count from now
+        cfg.setdefault("model", {})[claude_auth.BACKUP_SINCE] = int(time.time())
+        cfgmod.write_settings(cfg)
+        return
+    key = claude_auth.backup_remind_key(cfg)
+    if not key:
+        return
+    cfg.setdefault("model", {})[claude_auth.BACKUP_REMINDED] = True
+    cfgmod.write_settings(cfg)
+    inbox.add(localefmt.chu(
+        "Claude Code đang chạy bằng phiên đăng nhập claude.ai mà chưa có token dự phòng. Phiên này hết hạn là bot và "
+        "việc nền dừng lại. Vào trang Models, thẻ Claude Code, bấm Lấy token dự phòng (claude.ai đã đăng nhập sẵn, chỉ "
+        "cần bấm Authorize).",
+        "Claude Code runs on its claude.ai sign-in with no backup token. When that sign-in runs out, bots and "
+        "background work stop. On the Models page, Claude Code card, click Get the backup token (claude.ai is already "
+        "signed in, just click Authorize)."),
+        kind="system", source="engine", level="important", dedup=key)
+
+
+def _claude_probe_checks() -> None:
+    """connect_health.on_probe: every check of the Claude card's own that runs with the engine probe."""
+    for fn in (_claude_account_tokens_soon, _claude_backup_soon):
+        try:
+            fn()
+        except Exception as e:  # noqa: BLE001 - one missed notice never stops the other
+            print(f"[claude probe] {fn.__name__}: {type(e).__name__}: {e}", file=sys.stderr)
+
+
 @app.post("/claude/token")
 def claude_token_save(token: str = Form("")):
     """A token pasted on the card (made by `claude setup-token` on any machine)."""
@@ -7496,6 +7542,7 @@ def _claude_token_forget() -> bool:
         return False
     m["claude_oauth_token"] = ""
     m["claude_oauth_token_at"] = 0
+    claude_auth.backup_state_reset(m)
     if claude_auth.che_do(cfg) == claude_auth.TOKEN:
         m["claude_auth"] = claude_auth.SUBSCRIPTION
     cfgmod.write_settings(cfg)
@@ -18580,7 +18627,7 @@ async def _start_scheduler():
         connect_health.on_engine_down = lambda text: _loop_notify(text, source="engine", level="urgent")
         connect_health.on_connections_down = lambda text: _loop_notify(text, source="connections", level="important")
         connect_health.on_claude_token_soon = _claude_token_soon
-        connect_health.on_probe = _claude_account_tokens_soon
+        connect_health.on_probe = _claude_probe_checks
         connect_health.start()   # vòng check sức khoẻ kết nối + probe đèn báo não
     except Exception as e:
         print(f"[connect health start] {e}", file=_sys.stderr)
