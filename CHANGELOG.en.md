@@ -8,6 +8,12 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.659.0] - 2026-11-28
+### Added
+- **Chatbots send product photos from the POS or another product tool.** When a customer asks for a picture, the bot looks the product up in a connected tool and sends the photo that tool returns. When no source has one, it says plainly it cannot send a picture right now, without promising one later. A bot sends only image links its own lookup tools or documents gave it, never a link any customer wrote.
+### Fixed
+- **Ticking "Read post insights" on the Meta card no longer ends in an unexplained error.** Facebook shows "Invalid Scopes: read_insights" when the Meta app has not added that permission. Its (i) now gives the exact steps to add it in the Meta app, and Javis points to them under the login button.
+
 ## [0.658.7] - 2026-11-28
 ### Fixed
 - **End-to-end encrypted Zalo chats no longer show scrambled text.** Only the Zalo app on a device that joined the encryption can read them, so the inbox now says "End-to-end encrypted message: open the Zalo app to read it". The bot no longer answers them or reports a false "someone asked for A.I.". Messages stored earlier are relabelled when Javis starts.
