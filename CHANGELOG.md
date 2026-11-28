@@ -6,6 +6,12 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.659.0] - 2026-11-28
+### Thêm mới
+- **Bot chatbot gửi được ảnh sản phẩm lấy từ POS hoặc công cụ nguồn hàng.** Khách xin ảnh thì bot tra sản phẩm trong công cụ đã nối, rồi gửi ảnh mà công cụ đó trả về. Không có nguồn nào có ảnh thì bot nói thẳng là chưa gửi được ảnh, không hứa gửi sau. Bot chỉ gửi link ảnh do chính công cụ tra cứu hoặc tài liệu của nó đưa ra, không bao giờ tải link mà khách từng gõ.
+### Sửa lỗi
+- **Tick "Đọc số liệu bài viết" ở Kết nối Meta không còn bị lỗi khó hiểu.** Facebook báo "Invalid Scopes: read_insights" khi app Meta chưa thêm quyền này. Nút (i) nay chỉ đúng từng bước thêm quyền trong app Meta, và Javis nhắc ngay dưới nút Đăng nhập khi gặp lỗi đó.
+
 ## [0.658.7] - 2026-11-28
 ### Sửa lỗi
 - **Cuộc chat Zalo bật mã hoá đầu cuối không còn hiện chuỗi ký tự lạ.** Zalo chỉ cho app trên máy đã bật mã hoá đọc những tin này, nên Hộp thư nay hiện "Tin nhắn mã hoá đầu cuối: chỉ xem được trong app Zalo". Bot không trả lời những tin đó nữa và không báo nhầm "có người gọi A.I.". Tin đã lưu từ trước cũng được đổi lại khi Javis khởi động.
