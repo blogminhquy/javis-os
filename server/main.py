@@ -7381,6 +7381,12 @@ def claude_login_code(code: str = Form("")):
 def _claude_main_signed_in():
     """The main Claude account just signed in, by a pasted code or in the browser on its own."""
     claude_cli._LOGIN["finalized"] = True
+    try:   # 2026-11-28: the "no backup token" bell counts from this sign-in, and may ring once for it
+        cfg = cfgmod.read_settings()
+        claude_auth.backup_state_reset(cfg.setdefault("model", {}), since=time.time())
+        cfgmod.write_settings(cfg)
+    except Exception as e:  # noqa: BLE001 - the sign-in itself already succeeded
+        print(f"[claude login] backup state: {type(e).__name__}: {e}", file=sys.stderr)
     warm_pool.POOL.drop_kind("claude")   # 0.387.0: a warm `claude` keeps the login it started with
     # Vừa đăng nhập xong: đèn báo não phải xanh NGAY, không chờ vòng probe 10 phút
     # (banner 'chưa kết nối Model AI' treo sau khi đã kết nối là lỗi khách báo 27/08).
@@ -7429,6 +7435,7 @@ def _claude_token_save(raw) -> dict:
     m["claude_oauth_token"] = tok
     m["claude_oauth_token_at"] = int(time.time())
     m["claude_auth"] = claude_auth.TOKEN
+    claude_auth.backup_state_reset(m)
     cfgmod.write_settings(cfg)
     claude_cli.auth_quen_cache()
     warm_pool.POOL.drop_kind("claude")
@@ -7479,10 +7486,21 @@ def _claude_account_tokens_soon() -> None:
 def _claude_backup_soon() -> None:
     """Connect Claude signs in fully first and adds the token second (owner, 2026-11-28). An owner who stopped after
     step 1 runs on a login with nothing behind it: one bell notice per sign-in, a while after it, says how to add the
-    token. Called by connect_health's probe, which runs every few minutes."""
-    key = claude_auth.backup_remind_key()
+    token. Called by connect_health's probe, which runs every few minutes. Settings are written only when the state
+    changes (first seen missing, notice sent), never on a plain probe."""
+    cfg = cfgmod.read_settings()
+    m = cfg.get("model") or {}
+    if not claude_auth.login_then_token() or not claude_auth.backup_missing(cfg) or m.get(claude_auth.BACKUP_REMINDED):
+        return
+    if not m.get(claude_auth.BACKUP_SINCE):   # a login from before this check (or made in a terminal): count from now
+        cfg.setdefault("model", {})[claude_auth.BACKUP_SINCE] = int(time.time())
+        cfgmod.write_settings(cfg)
+        return
+    key = claude_auth.backup_remind_key(cfg)
     if not key:
         return
+    cfg.setdefault("model", {})[claude_auth.BACKUP_REMINDED] = True
+    cfgmod.write_settings(cfg)
     inbox.add(localefmt.chu(
         "Claude Code đang chạy bằng phiên đăng nhập claude.ai mà chưa có token dự phòng. Phiên này hết hạn là bot và "
         "việc nền dừng lại. Vào trang Models, thẻ Claude Code, bấm Lấy token dự phòng (claude.ai đã đăng nhập sẵn, chỉ "
@@ -7518,6 +7536,7 @@ def _claude_token_forget() -> bool:
         return False
     m["claude_oauth_token"] = ""
     m["claude_oauth_token_at"] = 0
+    claude_auth.backup_state_reset(m)
     if claude_auth.che_do(cfg) == claude_auth.TOKEN:
         m["claude_auth"] = claude_auth.SUBSCRIPTION
     cfgmod.write_settings(cfg)

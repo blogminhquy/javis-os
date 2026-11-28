@@ -830,7 +830,7 @@
   "models.tok_later": "Để sau",
   "models.tok_backup_off": "Chưa có token dự phòng: phiên đăng nhập hết hạn là bot và việc nền dừng.",
   "models.tok_backup_btn": "Lấy token dự phòng",
-  "models.tok_backup_info": "Claude Code đang chạy bằng phiên đăng nhập claude.ai, phiên này mang theo Gmail, Lịch, Drive... đã thêm trên claude.ai. Phiên có thể hết hạn giữa chừng và làm bot, việc nền dừng lại. Bấm Lấy token dự phòng để thêm token dùng được 1 năm: phiên đăng nhập vẫn chạy trước, khi nó hết thì Javis tự chuyển sang token. claude.ai đã đăng nhập sẵn nên chỉ cần bấm Authorize rồi dán mã.",
+  "models.tok_backup_info": "Claude Code đang chạy bằng phiên đăng nhập claude.ai, phiên này mang theo Gmail, Lịch, Drive... đã thêm trên claude.ai. Phiên có thể hết hạn giữa chừng và làm bot, việc nền dừng lại. Bấm Lấy token dự phòng để thêm token dùng được 1 năm: phiên đăng nhập mang kết nối claude.ai vẫn chạy trước, khi nó hết thì Javis tự chuyển sang token. claude.ai đã đăng nhập sẵn nên chỉ cần bấm Authorize rồi dán mã.",
   "models.tok_first_info": "Bấm Kết nối Claude, Javis làm 2 bước liền nhau. Bước 1 đăng nhập claude.ai đầy đủ, mang theo Gmail, Lịch, Drive... đã thêm trên claude.ai. Bước 2 lấy token dài hạn bằng lệnh dưới đây làm dự phòng: phiên đăng nhập có hết hạn thì bot và việc nền vẫn chạy tiếp trên token. Sang bước 2 claude.ai đã đăng nhập sẵn, chỉ cần bấm Authorize. Anthropic cho mỗi token dùng 1 năm; gần hết hạn Javis nhắc trong chuông. Hoặc chạy lệnh ở máy khác rồi bấm Dán token.",
   "models.auth_sub": "Gói đang đăng nhập",
   "models.auth_sub_d": "- không tốn thêm tiền. Hợp với một người dùng cá nhân ngồi gõ.",

@@ -88,25 +88,39 @@ check("no login file at all: not this case", not claude_auth.backup_missing({"mo
 # ============================================================
 # 3. the bell, once per sign-in, not right after it
 # ============================================================
-real_ltt = claude_auth.login_then_token
 claude_auth.login_then_token = lambda platform=None: True
-settings(SUB)
+NOW = time.time()
 write_login()
-check("right after the sign-in (step 2 may be on screen): no notice yet", claude_auth.backup_remind_key() == "")
-write_login(age=claude_auth.BACKUP_REMIND_AFTER_S + 60)
-k1 = claude_auth.backup_remind_key()
-check("a while later: due, keyed to this sign-in", k1.startswith("claude-no-backup:"), k1)
-check("the same sign-in gives the same key (one notice)", claude_auth.backup_remind_key() == k1)
-write_login(age=claude_auth.BACKUP_REMIND_AFTER_S + 60)
-k2 = claude_auth.backup_remind_key()
-check("a new sign-in gives a new key", k2 and k2 != k1, f"{k1} {k2}")
-settings(TOKMODE)
-check("the token saved: never due", claude_auth.backup_remind_key() == "")
-settings(SUB)
+
+
+def model_with(**kw):
+    return {"model": {**SUB, **kw}}
+
+
+check("no `since` yet: nothing due", claude_auth.backup_remind_key(model_with(), now=NOW) == "")
+check("right after the sign-in (step 2 may be on screen): no notice yet",
+      claude_auth.backup_remind_key(model_with(claude_backup_since=NOW - 60), now=NOW) == "")
+k1 = claude_auth.backup_remind_key(model_with(claude_backup_since=NOW - claude_auth.BACKUP_REMIND_AFTER_S - 60), now=NOW)
+check("a while later: due, keyed to that sign-in", k1.startswith("claude-no-backup:"), k1)
+write_login()   # what the CLI does on every access-token refresh
+check("CANARY: a token refresh (the CLI rewrites its login file) does not change the key",
+      claude_auth.backup_remind_key(model_with(claude_backup_since=NOW - claude_auth.BACKUP_REMIND_AFTER_S - 60),
+                                    now=NOW) == k1)
+check("once sent, never due again for that sign-in", claude_auth.backup_remind_key(
+    model_with(claude_backup_since=NOW - 9999, claude_backup_reminded=True), now=NOW) == "")
+check("the token saved: never due", claude_auth.backup_remind_key(
+    {"model": {**TOKMODE, "claude_backup_since": NOW - 9999}}, now=NOW) == "")
+check("API key chosen (even with the key blank): never due", claude_auth.backup_remind_key(
+    {"model": {"claude_auth": "api_key", "claude_backup_since": NOW - 9999}}, now=NOW) == "")
 claude_auth.login_then_token = lambda platform=None: False
 check("CANARY: where the card has no Get the backup token button (Windows), the bell stays quiet",
-      claude_auth.backup_remind_key() == "")
+      claude_auth.backup_remind_key(model_with(claude_backup_since=NOW - 9999), now=NOW) == "")
 claude_auth.login_then_token = lambda platform=None: True
+m = {"claude_backup_since": 1, "claude_backup_reminded": True}
+claude_auth.backup_state_reset(m, since=NOW)
+check("a new sign-in on the card restarts the count and allows one notice", m == {"claude_backup_since": int(NOW)})
+claude_auth.backup_state_reset(m)
+check("a token saved or a disconnect clears the state", m == {})
 
 import main  # noqa: E402
 
@@ -114,16 +128,38 @@ added = []
 main.inbox.add = lambda text, **kw: added.append((text, kw))
 settings(SUB)
 main._claude_backup_soon()
-check("CANARY: the probe rings the bell about the missing backup",
-      len(added) == 1 and added[0][1].get("dedup") == claude_auth.backup_remind_key()
-      and added[0][1].get("level") == "important", added)
+check("the first probe that finds no backup only starts the count",
+      added == [] and (cfgmod.read_settings()["model"].get("claude_backup_since") or 0) > 0)
+m0 = cfgmod.read_settings()["model"]
+settings({**m0, "claude_backup_since": int(NOW) - claude_auth.BACKUP_REMIND_AFTER_S - 60})
+main._claude_backup_soon()
+check("CANARY: due: the probe rings the bell once, important, and marks it sent",
+      len(added) == 1 and added[0][1].get("dedup", "").startswith("claude-no-backup:")
+      and added[0][1].get("level") == "important" and cfgmod.read_settings()["model"].get("claude_backup_reminded"),
+      added)
 check("the notice names the button on the card", "Get the backup token" in added[0][0]
-      or "Lấy token dự phòng" in added[0][0])
+      or "L\u1ea5y token d\u1ef1 ph\u00f2ng" in added[0][0])
 check("the notice has no em or en dash", not any(c in added[0][0] for c in "\u2014\u2013"))
+write_login()   # a refresh after the notice
+for _ in range(3):
+    main._claude_backup_soon()
+check("CANARY: refreshes and later probes never ring it again", len(added) == 1, len(added))
 added.clear()
-settings(TOKMODE)
+main._claude_token_save(TOK)
+check("saving the token clears the bell's state", not any(
+    k in cfgmod.read_settings()["model"] for k in ("claude_backup_since", "claude_backup_reminded")))
 main._claude_backup_soon()
 check("with the token saved, the probe says nothing", added == [])
+main._claude_token_forget()
+settings({**cfgmod.read_settings()["model"], "claude_backup_reminded": True, "claude_backup_since": 5})
+main.claude_cli._LOGIN["finalized"] = False
+for name in ("_plan_main_signed_in",):
+    setattr(main, name, lambda *a, **k: None)
+main.connect_health.engine_reconnected = lambda *a, **k: None
+main._claude_main_signed_in()
+mm = cfgmod.read_settings()["model"]
+check("a sign-in on the card restarts the count from now and allows one notice",
+      not mm.get("claude_backup_reminded") and mm.get("claude_backup_since", 0) >= int(NOW), mm)
 
 calls = []
 main._claude_account_tokens_soon = lambda: (calls.append("acc"), 1 / 0)

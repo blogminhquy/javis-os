@@ -830,7 +830,7 @@
   "models.tok_later": "Later",
   "models.tok_backup_off": "No backup token yet: if the sign-in runs out, bots and background work stop.",
   "models.tok_backup_btn": "Get the backup token",
-  "models.tok_backup_info": "Claude Code runs on its claude.ai sign-in, which carries the Gmail, Calendar, Drive... added on claude.ai. That sign-in can run out midway and stop bots and background work. Get the backup token adds a token valid for a year: the sign-in still runs first, and when it ends Javis moves to the token by itself. claude.ai is already signed in, so it is one click on Authorize and a pasted code.",
+  "models.tok_backup_info": "Claude Code runs on its claude.ai sign-in, which carries the Gmail, Calendar, Drive... added on claude.ai. That sign-in can run out midway and stop bots and background work. Get the backup token adds a token valid for a year: a sign-in that carries the claude.ai connectors still runs first, and when it ends Javis moves to the token by itself. claude.ai is already signed in, so it is one click on Authorize and a pasted code.",
   "models.tok_first_info": "Connect Claude does two steps in a row. Step 1 is the full claude.ai sign-in, which carries the Gmail, Calendar, Drive... added on claude.ai. Step 2 gets a long-lived token with the command below as the backup: if the sign-in runs out, bots and background work go on with the token. By step 2 claude.ai is already signed in, so it is one click on Authorize. Anthropic lets each token run for a year; near the end Javis reminds you in the bell. Or run the command on another machine and use Paste a token.",
   "models.auth_sub": "Your signed-in plan",
   "models.auth_sub_d": "- no extra cost. A good fit for one person typing.",
