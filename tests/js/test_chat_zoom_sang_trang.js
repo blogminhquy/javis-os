@@ -65,12 +65,11 @@ check("chuyển trang qua đúng store điều hướng của console.js",
 check("không nhảy trang khi đã ở sẵn trang đó (tránh nháy)",
       /active === id/.test(ZOOM_CODE));
 
-// ---- 4. Chiều VỀ: trang Trò chuyện phải có nút thu nhỏ ----
-// Thiếu nút này là người dùng vào được mà không ra được bằng đúng chỗ vừa bấm.
-check("CANARY: trang Trò chuyện có nút thu nhỏ", CONSOLE.indexOf('id="cpMinBtn"') !== -1);
-check("nút thu nhỏ đưa về màn Javis",
-      /#cpMinBtn["']\)\.onclick = \(\) => navigateTo\(["']home["']\)/.test(CONSOLE_CODE));
-check("nút thu nhỏ có chữ cho biết nó làm gì", /Thu nhỏ/.test(CONSOLE));
+// ---- 4. Chiều VỀ: nút thu nhỏ đã bỏ (chủ dự án 28/11/2026) ----
+// Bộ não không còn là trang chính, và đường về màn Javis đã có ở thanh bên (rail) và menu ba gạch trên
+// điện thoại, nên nút "Thu nhỏ" trên thanh trang Trò chuyện chỉ ăn chỗ của nút mục lục.
+check("trang Trò chuyện không còn nút thu nhỏ", CONSOLE.indexOf('id="cpMinBtn"') === -1
+      && !/#cpMinBtn/.test(CONSOLE_CODE));
 
 // ---- 5. Các API cũ vẫn gọi được, và trở thành vô hại ----
 // console.js/sessions-ui.js còn gọi JavisChatStage. Bỏ hẳn object là vỡ trang.

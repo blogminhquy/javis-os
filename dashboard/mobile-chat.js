@@ -1,8 +1,8 @@
 // Wiring giao diện chat trên điện thoại (mobile-only, <=860px):
-//  - phone: the notification bell and the + button (#newChatBtn) move into the header, a computer gets them back
+//  - phone: the notification bell moves into the header's right corner, a computer gets it back
+//    (owner 2026-11-28: menu on the left, bell on the right; the old + for a new conversation is gone)
 //    (the model chip stays in the composer next to the Effort chip on every width since 2026-11-09)
 //  - dời nhóm Hệ thống (chọn brain, đổi tông, loa, dải HỆ THỐNG) vào đáy ngăn kéo
-//  - nút + = hội thoại mới (reset) + focus ô nhập
 //  - ngăn kéo điều hướng: nút menu mở/đóng, backdrop / Esc / chọn mục thì đóng
 //  - rút gọn placeholder ô nhập cho vừa bề ngang điện thoại
 (function () {
@@ -10,27 +10,20 @@
     var mq = window.matchMedia("(max-width: 860px)");
     var railEl = document.querySelector(".rail");
 
-    // ---- 1) Phone header: the bell and the + button move up into it; a computer gets them back ----
+    // ---- 1) Phone header: the bell moves up into its right corner; a computer gets it back ----
     // The model chip (#mbOpen) and its picker (#mbPop) are NOT moved: owner, 2026-11-09, "chuyển khung lựa chọn model về
     // cạnh lựa chọn mức suy luận ở bản điện thoại, làm giống bản máy tính". From 0.182.0 to then a phone carried the chip
     // in the header; now the composer is compact enough to hold it next to the Effort chip, as on a computer.
     var headerRoot = document.querySelector(".hud-top");
-    var newChatBtn = document.getElementById("newChatBtn");
-    var origNewChatParent = newChatBtn ? newChatBtn.parentElement : null;
     var notificationTrigger = document.getElementById("notificationTrigger");
     var origNotificationParent = notificationTrigger ? notificationTrigger.parentElement : null;
     var origNotificationNext = notificationTrigger ? notificationTrigger.nextSibling : null;
     function placeHeader() {
       if (!headerRoot) return;
       if (mq.matches) {
-        if (notificationTrigger && notificationTrigger.parentElement !== headerRoot) {
-          var navToggle = document.getElementById("navToggle");
-          if (navToggle && navToggle.parentElement === headerRoot) headerRoot.insertBefore(notificationTrigger, navToggle.nextSibling);
-          else headerRoot.insertBefore(notificationTrigger, headerRoot.firstChild);
-        }
-        if (newChatBtn && newChatBtn.parentElement !== headerRoot) headerRoot.appendChild(newChatBtn);  // + về cuối header
+        // Last child of the header = the right corner (console.css pushes it there with margin-left:auto).
+        if (notificationTrigger && notificationTrigger.parentElement !== headerRoot) headerRoot.appendChild(notificationTrigger);
       } else {
-        if (newChatBtn && origNewChatParent && newChatBtn.parentElement !== origNewChatParent) origNewChatParent.appendChild(newChatBtn);
         if (notificationTrigger && origNotificationParent && notificationTrigger.parentElement !== origNotificationParent) {
           if (origNotificationNext && origNotificationNext.parentElement === origNotificationParent) {
             origNotificationParent.insertBefore(notificationTrigger, origNotificationNext);
@@ -125,13 +118,6 @@
       if (chu === khoa) return;
       chatInput.setAttribute("placeholder", chu);
     }
-
-    // ---- 4) Nút + = hội thoại mới (reset) + focus ô nhập cho phản hồi tức thì ----
-    var reset = document.getElementById("resetBtn");
-    if (newChatBtn && reset) newChatBtn.addEventListener("click", function () {
-      reset.click();
-      if (chatInput) { try { chatInput.focus(); } catch (e) {} }
-    });
 
     // ---- 5) Ngăn kéo điều hướng ----
     var toggle = document.getElementById("navToggle");

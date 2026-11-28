@@ -40,21 +40,20 @@ check("bảng nhãn panel Mức dùng có Groq và Gemini",
 const iMq = CONSOLE.indexOf("@media (max-width:860px)");
 check("tìm được media query của trang Trò chuyện", iMq !== -1);
 const MQ = CONSOLE.slice(iMq, iMq + 900);
-check("CANARY: màn hẹp thì nút Thu nhỏ chỉ còn icon", /\.cp-min span\{\s*display:none/.test(MQ));
+// 28/11/2026 (chủ dự án): nút "Thu nhỏ" về màn Javis đã bỏ hẳn khỏi thanh, nên không còn chữ nào phải rút
+// về icon. Thanh trên màn hẹp chỉ còn nút mở ngăn, tên cuộc chat và chip project.
+check("màn hẹp: thanh tiêu đề không xuống dòng (min-width:0)", /\.chatpage-bar\{\s*gap:6px;\s*min-width:0;/.test(MQ));
+check("thanh không còn nút Thu nhỏ", !/cpMinBtn|\.cp-min\b/.test(CONSOLE));
 // Ba mục về .cp-title (cấm xuống dòng, cắt ba chấm, min-width:0) ĐÃ BỎ ở 0.53.1: tiêu đề
 // tĩnh "Trò chuyện với Javis" bị gỡ hẳn khỏi thanh theo yêu cầu của chủ repo, nên không còn
 // gì để cắt. Thứ đứng ở chỗ đó bây giờ là chip project, và chính nó nhận lại yêu cầu "một
 // dòng, cắt ba chấm" - canh ở tests/js/test_khung_project.js.
 check("thanh tiêu đề không còn tiêu đề tĩnh để phải cắt", !/cp-title/.test(CONSOLE));
 
-// Ẩn được chữ là nhờ nó nằm trong <span>. Để chữ trần thì không cách nào ẩn mà giữ icon.
-check("CANARY: chữ 'Thu nhỏ' nằm trong <span> để ẩn được",
-      /<span(?:\s+data-i18n="cs\.cp_min")?>[^<]*cs\.cp_min"[^<]*<\/span>/.test(CONSOLE)
-      && VI["cs.cp_min"] === "Thu nhỏ");
-// Ẩn chữ thì trình đọc màn hình mất nghĩa của nút, nên phải có nhãn thay thế.
-check("nút vẫn có nhãn cho trình đọc màn hình khi ẩn chữ",
-      /id="cpMinBtn"[\s\S]{0,200}aria-label="'\s*\+\s*esc\(window\.t\("cs\.cp_min_title"\)\)/.test(CONSOLE)
-      && (VI["cs.cp_min_title"] || "").includes("Thu nhỏ"));
+// Nút còn lại chỉ có icon (mở ngăn hội thoại) nên phải có nhãn cho trình đọc màn hình.
+check("nút mở ngăn chỉ có icon vẫn có nhãn cho trình đọc màn hình",
+      /cp-side-toggle"[\s\S]{0,300}aria-label="'\s*\+\s*esc\(window\.t\("cs\.cp_side_open"\)\)/.test(CONSOLE)
+      && !!VI["cs.cp_side_open"]);
 
 // ---- 2. Trình duyệt phải nạp lại file đã sửa ----
 const v = (f) => {

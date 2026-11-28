@@ -168,7 +168,7 @@
     return '<div class="tm-sheet" data-panel="' + id + '" role="dialog" aria-label="' + esc(tw("teams.msg_more")) + '">' +
       (mine ? "" : reactBarHtml(m, cur)) + '<div class="tm-sheet-acts">' +
       btn('data-reply="' + id + '"', "reply", "teams.msg_reply") + btn('data-copy="' + id + '"', "copy", "teams.copy") +
-      ((m.meta || {}).decision ? "" : btn('data-decision="' + id + '" data-on="1"', "pin", "teams.decision_pin")) +
+      ((m.meta || {}).decision ? "" : btn('data-decision="' + id + '" data-on="1"', "pin", "teams.decision_pin_short")) +
       btn('data-react-close="' + id + '"', "x", "teams.close") + "</div></div>";
   }
 
@@ -6638,7 +6638,7 @@
           var out = [{ icon: "reply", label: tw("teams.msg_reply"), run: function () { startReply(mid); } },
             { icon: "copy", label: tw("teams.copy"), run: function () { copyMsg(mid); } }];
           if (!(x.meta || {}).decision) {
-            out.push({ icon: "pin", label: tw("teams.decision_pin"), run: function () {
+            out.push({ icon: "pin", label: tw("teams.decision_pin_short"), run: function () {
               call("POST", teamUrl("/messages/" + q(mid) + "/decision"), { on: true }).then(function (r) {
                 if (r.code !== 200) return fail(r);
                 loadMsgs(false);

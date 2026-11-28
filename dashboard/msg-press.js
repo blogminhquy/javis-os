@@ -108,6 +108,7 @@
     function close() {
       stop();
       sliding = false;
+      scrimTap = false;
       setHot(null);
       if (layer) { layer.remove(); layer = null; unselect(); }
       free = false;
@@ -221,7 +222,21 @@
 
     // Any new touch while the card is open means the first finger is off the screen (touchend may not come on iOS
     // when its own gesture cancelled the stream).
-    function onAnyStart() { if (layer && !timer && Date.now() - openedAt > 50) setFree(); }
+    // 28/11/2026 (owner, Teams on a phone: "ấn ra bên ngoài thì nó không tắt", the screen felt frozen): nor does it come
+    // when the page redraws the list under the finger (Teams does on every new message or job update): the held message
+    // leaves the page and its touchend never bubbles to the document. `sliding` then stayed on, so the next tap on the
+    // dim area was taken for "lift after sliding", its touchend was refused and no click closed the card. A new touch
+    // ends the slide; a tap that starts and ends on the dim area closes the card at once, click or not.
+    var scrimTap = false;
+    function onAnyStart(e) {
+      if (!layer || timer || Date.now() - openedAt <= 50) return;
+      setFree();
+      sliding = false;
+      setHot(null);
+      var t = e && e.target;
+      if (t && t.nodeType !== 1) t = t.parentNode;
+      scrimTap = !!(t && t.closest && t.closest("[data-mp-close]"));
+    }
 
     function onStart(e) {
       if (layer || !e.touches || e.touches.length !== 1) { stop(); return; }
@@ -254,6 +269,15 @@
 
     function onEnd(e) {
       stop();
+      if (layer && scrimTap) {
+        scrimTap = false;
+        var t = e.target;
+        if (t && t.nodeType !== 1) t = t.parentNode;
+        if (t && t.closest && t.closest("[data-mp-close]") && Date.now() - openedAt > 350) {
+          if (e.cancelable) e.preventDefault();   // the card is gone: no click on whatever sits under it now
+          return close();
+        }
+      }
       if (layer && (!e.touches || !e.touches.length)) setFree();
       if (!layer || !sliding) return;
       sliding = false;

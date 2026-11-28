@@ -5080,6 +5080,8 @@ div.info-body > * { margin: 0; font-size: inherit; }
 .mp-act { display: flex; flex-direction: column; align-items: center; gap: 6px; min-height: 72px; padding: 8px 4px; border: none;
   border-radius: 12px; background: none; color: var(--text); font: inherit; font-size: 14px; cursor: pointer; }
 .mp-act:active { background: var(--surface-2); }
+/* 28/11/2026 (owner, Teams): one short line per action ("Ghim", not "Ghim làm quyết định" over three lines). */
+.mp-act > span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mp-act-ic { display: inline-flex; color: var(--accent); }
 .mp-act-ic svg, .mp-act-ic .ic { width: 26px; height: 26px; }
 .mp-act.is-danger { color: var(--red, #d64545); }

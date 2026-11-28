@@ -9572,8 +9572,8 @@
       min-height:0; padding:14px 12px; border-right:1px solid var(--glass-brd); background:var(--surface-1); }
     .chatpage-main{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; min-height:0; padding:14px 20px 8px; }
     .chatpage-bar{ display:flex; align-items:center; gap:10px; padding:0 4px 10px; flex:none; }
-    /* Chip project lùi hẳn về mép phải: thanh này giờ chỉ còn hai nút bên trái, để chip
-       dính ngay sau chúng thì nó trông như nút thứ ba chứ không phải nhãn của cuộc chat. */
+    /* Chip project lùi hẳn về mép phải, để chip dính ngay sau tên cuộc chat thì nó trông như
+       một nút chứ không phải nhãn của cuộc chat. */
     .chatpage-bar .proj-chip-host{ margin-left:auto; }
     .cp-ico-btn{ background:none; border:1px solid var(--border); color:var(--text2); border-radius:8px;
       padding:4px 10px; cursor:pointer; font-size:14px; line-height:1; }
@@ -9601,8 +9601,7 @@
         border:1px solid var(--border); background:none; color:var(--text2); cursor:pointer; }
       .chatpage.side-thu .chatpage-side > .cside-expand:hover{ color:var(--accent); border-color:var(--accent); }
     }
-    .cp-min{ display:inline-flex; align-items:center; gap:5px; font-family:var(--font); }
-    /* 0.251.0: conversation name beside the collapse button. Quiet by default (no border, a hairline
+    /* 0.251.0: conversation name at the start of the bar (beside the drawer button on a phone). Quiet by default (no border, a hairline
        divider in front) so it reads as the page's heading rather than a third button. It shrinks
        before the chips on the right do. Hover shows a soft background and the pencil that says a
        click renames it. Long names end in an ellipsis. */
@@ -9690,14 +9689,14 @@
     .chatpage-slot .attach-bar{ flex:none; }
     /* Màn hẹp: cả hàng tiêu đề phải nằm gọn MỘT dòng. Trước đây tiêu đề "Trò chuyện với Javis"
        xuống bốn dòng và chữ "Thu nhỏ" xuống hai dòng, đẩy khung chat tụt hẳn xuống - chủ repo
-       chụp lại đúng cảnh đó. Nay hàng này nhẹ hẳn: tiêu đề tĩnh và nhãn engine đều đã bỏ, chỉ
-       còn hai nút (rút về icon) và chip project ở mép phải (tự cắt, xem style.css). */
+       chụp lại đúng cảnh đó. Nay hàng này nhẹ hẳn: tiêu đề tĩnh, nhãn engine và nút "Thu nhỏ" về
+       màn Javis đều đã bỏ (nút này bỏ 28/11/2026: bộ não không còn là trang chính, và nó chiếm chỗ
+       khiến nút mục lục dính vào chip project), chỉ còn nút mở ngăn hội thoại, tên cuộc chat và
+       chip project ở mép phải (tự cắt, xem style.css). */
     @media (max-width:860px){
       /* Màn hẹp không đủ chỗ xếp chồng trình sửa + chat → trình sửa chiếm chỗ như cũ. */
       .chatpage-main.edit-on > .chatpage-slot{ display:none; }
       .chatpage-bar{ gap:6px; min-width:0; }
-      .cp-min span{ display:none; }
-      .cp-min{ padding:4px 8px; }
       .cp-side-toggle{ display:inline-flex; align-items:center; padding:4px 8px; }
       .cside-thu-btn{ width:34px; height:34px; top:12px; }
       .chatpage-side .cside-tabs{ padding-right:42px; }
@@ -10008,11 +10007,8 @@
             // Phone only (CSS hides it on a computer): opens the Conversations/Files drawer.
             '<button class="cp-ico-btn cp-side-toggle" type="button" data-i18n-title="cs.cp_side_open" data-i18n-aria="cs.cp_side_open" ' +
               'title="' + esc(window.t("cs.cp_side_open")) + '" aria-label="' + esc(window.t("cs.cp_side_open")) + '">' + ic("panel-left") + '</button>' +
-            // Chữ nằm trong <span> để màn hẹp ẩn được, giữ lại icon. Để chữ trần thì không
-            // có cách nào ẩn mà không mất luôn cả nút.
-            '<button class="cp-ico-btn cp-min" type="button" id="cpMinBtn" data-i18n-title="cs.cp_min_title" data-i18n-aria="cs.cp_min_title" ' +
-              'title="' + esc(window.t("cs.cp_min_title")) + '" aria-label="' + esc(window.t("cs.cp_min_title")) + '">' +
-              ic("chevron-left") + '<span data-i18n="cs.cp_min">' + esc(window.t("cs.cp_min")) + '</span></button>' +
+            // The "Thu nhỏ" button back to the Javis screen is gone (owner 2026-11-28): the rail and the
+            // phone menu already reach every page, and its room lets the TOC button breathe.
             // 0.251.0: the open conversation's name (sessions-ui.js renderTitle draws it).
             '<span class="cp-conv-host"></span>' +
             // Tiêu đề tĩnh "Trò chuyện với Javis" ĐÃ BỎ (chủ repo yêu cầu 01/09). Nó nói
@@ -10070,9 +10066,6 @@
       em.onclick = () => datEditThu(false);
       slot.appendChild(et); slot.appendChild(em);
     }
-    // Đường VỀ. Nút phóng to ở màn Javis nay dẫn thẳng sang trang này (lớp nổi .chat-stage đã
-    // bỏ), nên trang này phải có nút thu nhỏ, nếu không người dùng chỉ còn cách bấm rail.
-    el.querySelector("#cpMinBtn").onclick = () => navigateTo("home");
     // Cuộn xuống đáy + focus ô nhập cho tiện gõ ngay
     const ca = document.getElementById("chatArea"); if (ca) ca.scrollTop = ca.scrollHeight;
     const ci = document.getElementById("chatInput"); if (ci) { try { ci.focus(); } catch (e) {} }
