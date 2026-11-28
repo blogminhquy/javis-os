@@ -2875,7 +2875,7 @@ def _make_answer_fn(bot_id: str):
             try:
                 # Off the event loop: a web image from a tool of this turn (a POS product photo) is downloaded here.
                 dap, anh = await asyncio.to_thread(bot_images.pick, dap, _deps["brain_root"](cfg["brain"]), chat_id,
-                                                   bot_images.links_in((tl or {}).get("khoi") or ""))
+                                                   bot_images.links_in((tl or {}).get("khoi") or ""), text)
             except Exception as e:      # noqa: BLE001 - a broken image pick must not cost the customer the reply
                 anh = []
                 print(f"[chatbot {bot_id}] tách ảnh lỗi: {type(e).__name__}: {e}", file=sys.stderr)

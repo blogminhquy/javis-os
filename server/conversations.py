@@ -592,6 +592,20 @@ def _don_sao_luu_cat_nhom() -> int:
 
 
 
+def customer_wrote(needle: str) -> bool:
+    """Any customer message in the inbox, on any channel, holds `needle` (a link). A dedicated bot never sends a web
+    image a customer wrote (bot_images.py): a history or inbox read hands those words back as a tool result. Scans the
+    whole table on purpose, since a customer can write in one chat and the bot read it from another; it runs only
+    when a bot is about to send a web image."""
+    s = str(needle or "")
+    if not s:
+        return False
+    with _lock:
+        row = _conn().execute("SELECT 1 FROM messages WHERE sender_type='customer' AND instr(text, ?) > 0 LIMIT 1",
+                              (s,)).fetchone()
+    return row is not None
+
+
 _E2EE_MARK = "zalo_e2ee_relabel_v1"
 
 

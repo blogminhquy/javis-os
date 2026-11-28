@@ -1116,10 +1116,11 @@ def _make_call(tool: dict, ctx: PluginContext, mode: str):
             # again by the end of the turn. Known by what the arguments name, never by the tool's name.
             import delivery_ledger
             delivery_ledger.note_call(args or {}, result, base_dir=getattr(ctx, "vault_root", None))
-        if not str(result).startswith("ERROR:"):
-            # A product photo a plugin tool (a POS pack) returns to a bot's turn may be sent to that chat (bot_images).
+        if min_mode == "readonly" and not str(result).startswith("ERROR:"):
+            # A product photo a read-only plugin tool (a POS pack) returns to a bot's turn may be sent to that chat
+            # (bot_images); never a link that was in the arguments.
             import bot_images
-            bot_images.note_tool_result(result)
+            bot_images.note_tool_result(result, args)
         return result
 
     return _call

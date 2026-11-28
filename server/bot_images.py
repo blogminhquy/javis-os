@@ -18,10 +18,12 @@ A path that fails stays in the text as written, so the owner can see in the inbo
 Web images from the bot's data sources (owner, 28/11/2026: "the chatbot must find a picture source such as the POS or a
 related tool, and say it cannot send one when there is none"). A POS returns a product's photo as a link, never as a
 file in the brain, so the bot could only say "I have no picture". A web link is now sent too, but only one that a
-tool of this very chat's bot turn returned (`note_tool_result`, called by the hub after each call), or that the
-documents looked up for this turn contain. A link the customer typed, or one the model made up, is never fetched. The
-fetch is https or http to a public address only (every redirect checked again), the answer must be an image, at most
-`MAX_BYTES`, and it lands in a cache under the state folder, not in the brain.
+read tool of this very chat's bot turn returned (`note_tool_result`, called by the hub and the plugin host), or that
+the documents looked up for this turn contain, and that no customer ever wrote: a history read hands a customer's own
+words back as a tool result, so the inbox is checked too. A link the model made up is never fetched. The fetch goes to
+a vetted public address on port 80 or 443 (pinned, so a DNS answer cannot change between the check and the connect;
+every redirect vetted again), must answer an image of at most `MAX_BYTES` within `PICK_DEADLINE_S`, and lands in a
+pruned cache under the state folder, not in the brain.
 """
 from __future__ import annotations
 
@@ -64,8 +66,8 @@ MAX_BYTES = 10 * 1024 * 1024
 # What the Agent reads so it knows the capability exists, and where a picture may come from.
 PROMPT_HINT = ("\nSENDING IMAGES: to send a picture to the person you are talking to, put ![short caption](image) in "
                "your answer, at most " + str(MAX_IMAGES) + " per answer. Where a picture may come from, in this order: "
-               "a file in your documents (path from their root, e.g. attachments/product.jpg); a web image link from "
-               "your documents; a web image link a tool of yours returned in this turn (a POS or product catalogue: "
+               "a file in your documents (path from their root, e.g. attachments/product.jpg); a web image link written "
+               "in the documents shown to you for this question; a web image link a tool of yours returned in this turn (a POS or product catalogue: "
                "search the product there and use its image link as returned). When asked for a picture and a tool "
                "could have one, look it up before answering. Never make up a path or a link, and never use a link the "
                "customer typed. If no source has a picture, say plainly that you cannot send one right now; never "
@@ -76,10 +78,17 @@ REMOTE_TTL_S = 1800            # a link a tool returned stays sendable this long
 REMOTE_MAX = 4000              # links remembered at most, all chats together
 REMOTE_PER_RESULT = 200        # links taken from one tool result
 REMOTE_SCAN_CHARS = 400_000    # characters of one tool result searched for links
-FETCH_TIMEOUT_S = 15
+FETCH_TIMEOUT_S = 15           # one connect or read
+PICK_DEADLINE_S = 20           # every web image of one reply together: the customer is waiting for it
 FETCH_REDIRECTS = 3
+FETCH_PORTS = (None, 80, 443)  # no other port, so a link cannot knock on a service that only listens elsewhere
+CACHE_MAX_FILES = 300
+CACHE_MAX_AGE_S = 7 * 86400
 _URL_RE = re.compile(r"https?://[^\s\"'<>()\[\]{}\\|^`]+", re.IGNORECASE)
 _URL_TAIL = ".,;:!?*_~"
+# JSON writers that escape what a link holds (PHP `\/`, Go `\u0026`): read the link as the model will write it.
+_JSON_ESCAPES = (("\\/", "/"), ("\\u0026", "&"), ("\\u003d", "="), ("\\u003D", "="), ("\\u003f", "?"),
+                 ("\\u003F", "?"))
 _CT_EXT = {"image/jpeg": ".jpg", "image/jpg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif"}
 _remote_lock = threading.Lock()
 _remote: deque = deque(maxlen=REMOTE_MAX)     # (chat keys, url, time)
@@ -92,8 +101,11 @@ def _chat_keys(chat) -> frozenset:
 
 def links_in(text, limit: int = REMOTE_PER_RESULT) -> List[str]:
     """The http(s) links in `text`, trailing punctuation dropped, in order, without repeats."""
+    raw = str(text or "")[:REMOTE_SCAN_CHARS]
+    for a, b in _JSON_ESCAPES:
+        raw = raw.replace(a, b)
     out: List[str] = []
-    for m in _URL_RE.finditer(str(text or "")[:REMOTE_SCAN_CHARS]):
+    for m in _URL_RE.finditer(raw):
         url = m.group(0).rstrip(_URL_TAIL)
         if len(url) > 2000 or url in out:
             continue
@@ -103,23 +115,38 @@ def links_in(text, limit: int = REMOTE_PER_RESULT) -> List[str]:
     return out
 
 
-def note_tool_result(result, turn: Optional[dict] = None) -> None:
-    """Remember the links a tool returned in a dedicated bot's turn, for that turn's chat. Called by the hub after
-    every successful call. The owner's own turns are not recorded: their tools may return private links that a bot
-    answering strangers must not be able to fetch. Never raises."""
+def _args_text(args) -> str:
+    try:
+        import json
+        return json.dumps(args, ensure_ascii=False, default=str)
+    except Exception:       # noqa: BLE001
+        return str(args)
+
+
+def note_tool_result(result, args=None, turn: Optional[dict] = None) -> None:
+    """Remember the links a READ tool returned in a dedicated bot's turn, for that turn's chat. The hub and the plugin
+    host call it after each successful read. Never raises.
+
+    What is not recorded, because a customer could have put it there:
+      - a link that is also in the call's arguments (a search that echoes its query);
+      - anything outside a bot's turn (`bot_id` is set by the host only for a bot turn, never by the model): the
+        owner's own turns and jobs may return private links a bot answering strangers must not reach.
+    Links of the customers' own messages, which a history or inbox read returns, are refused later by `pick`
+    (`_customer_wrote`), wherever they were recorded."""
     try:
         if turn is None:
             import turn_context
             turn = turn_context.current()
-        if not turn or turn.get("la_chu"):
+        if not turn or turn.get("la_chu") or not turn.get("bot_id"):
             return
         keys = _chat_keys(turn.get("chat_id"))
         text = result if isinstance(result, str) else repr(result)
         if not keys or text.startswith("ERROR:"):
             return
-        now = time.time()
-        urls = links_in(text)
+        given = set(links_in(_args_text(args))) if args else set()
+        urls = [u for u in links_in(text) if u not in given and not any(g and g in u for g in given)]
         if urls:
+            now = time.time()
             with _remote_lock:
                 for url in urls:
                     _remote.append((keys, url, now))
@@ -128,8 +155,8 @@ def note_tool_result(result, turn: Optional[dict] = None) -> None:
 
 
 def remote_allowed(url: str, chat_id, extra: Iterable[str] = ()) -> bool:
-    """True when a tool of this chat's bot turn returned `url` within REMOTE_TTL_S, or `extra` (links of the documents
-    looked up for this turn) holds it."""
+    """True when a read tool of this chat's bot turn returned `url` within REMOTE_TTL_S, or `extra` (links of the
+    documents looked up for this turn) holds it."""
     url = str(url or "").strip()
     if not url:
         return False
@@ -149,33 +176,52 @@ def forget_remote() -> None:
         _remote.clear()
 
 
-def _public_host(host: str, port: int) -> bool:
-    """Every address `host` resolves to is a public one (no loopback, LAN, link-local...)."""
+def _customer_wrote(url: str, turn_text: str = "") -> bool:
+    """A customer wrote this link: in the message being answered, or in any customer message of the inbox (a history
+    read hands a customer's words back as a tool result). Fails closed."""
+    if url in str(turn_text or ""):
+        return True
+    try:
+        import conversations
+        return conversations.customer_wrote(url)
+    except Exception:       # noqa: BLE001
+        return True
+
+
+def _public_ip(host: str, port: int) -> str:
+    """The address to connect to when EVERY address `host` resolves to is public, else "". Connecting to exactly this
+    address (`fetch_remote`) closes the gap a short-lived DNS answer would open between the check and the connect."""
     try:
         infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
     except (OSError, UnicodeError):
-        return False
+        return ""
     if not infos:
-        return False
+        return ""
     for info in infos:
         try:
             ip = ipaddress.ip_address(str(info[4][0]).split("%", 1)[0])
         except ValueError:
-            return False
+            return ""
+        if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+            ip = ip.ipv4_mapped
         if not ip.is_global:
-            return False
-    return True
+            return ""
+    return str(infos[0][4][0]).split("%", 1)[0]
 
 
-def _url_ok(url: str) -> bool:
+def _vet(url: str) -> str:
+    """The vetted address to connect to for `url`, or "" when the link must not be fetched: http(s) only, ports 80
+    and 443 only, no user name or password, a public address."""
     try:
         p = urlsplit(url)
-        port = p.port or (443 if p.scheme == "https" else 80)
+        port = p.port
     except ValueError:
-        return False
+        return ""
     if p.scheme not in ("http", "https") or not p.hostname or p.username is not None or p.password is not None:
-        return False
-    return _public_host(p.hostname, port)
+        return ""
+    if port not in FETCH_PORTS:
+        return ""
+    return _public_ip(p.hostname, port or (443 if p.scheme == "https" else 80))
 
 
 def cache_dir() -> Path:
@@ -183,10 +229,24 @@ def cache_dir() -> Path:
     return Path(STATE_DIR) / "bot-image-cache"
 
 
-def fetch_remote(url: str) -> str:
+def _prune_cache(d: Path) -> None:
+    """Keep the cache to CACHE_MAX_FILES files and CACHE_MAX_AGE_S days; leftover partial files go too."""
+    try:
+        now = time.time()
+        files = sorted((p for p in d.iterdir() if p.is_file()), key=lambda p: p.stat().st_mtime, reverse=True)
+        for i, p in enumerate(files):
+            if i >= CACHE_MAX_FILES or now - p.stat().st_mtime > CACHE_MAX_AGE_S or p.name.endswith(".part"):
+                p.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def fetch_remote(url: str, deadline: Optional[float] = None) -> str:
     """Download one web image into the cache and return its path, or "" when it is not a public image within
-    MAX_BYTES. A file fetched before (same link) is reused."""
+    MAX_BYTES or the time runs out (`deadline`, a `time.monotonic()` value). A link fetched before is reused."""
     import httpx
+    import web_watch
+    deadline = deadline if deadline is not None else time.monotonic() + PICK_DEADLINE_S
     d = cache_dir()
     stem = hashlib.sha256(url.encode("utf-8")).hexdigest()[:32]
     for ext in set(_CT_EXT.values()):
@@ -195,12 +255,14 @@ def fetch_remote(url: str) -> str:
             return str(old)
     cur = url
     try:
-        with httpx.Client(timeout=FETCH_TIMEOUT_S, follow_redirects=False,
-                          headers={"User-Agent": "Mozilla/5.0 (Javis bot image)"}) as client:
+        with httpx.Client(timeout=FETCH_TIMEOUT_S, follow_redirects=False) as client:
             for _ in range(FETCH_REDIRECTS + 1):
-                if not _url_ok(cur):
+                ip = _vet(cur)
+                if not ip or time.monotonic() > deadline:
                     return ""
-                with client.stream("GET", cur) as r:
+                call, headers, ext_ = web_watch.pinned(cur, ip)
+                headers = dict(headers, **{"User-Agent": "Mozilla/5.0 (Javis bot image)"})
+                with client.stream("GET", call, headers=headers, extensions=ext_) as r:
                     if r.status_code in (301, 302, 303, 307, 308) and r.headers.get("location"):
                         cur = urljoin(cur, r.headers["location"])
                         continue
@@ -210,21 +272,28 @@ def fetch_remote(url: str) -> str:
                     ext = _CT_EXT.get(ctype)
                     if not ext:
                         return ""
-                    size = int(r.headers.get("content-length") or 0)
+                    try:
+                        size = int(r.headers.get("content-length") or 0)
+                    except ValueError:
+                        size = 0
                     if size > MAX_BYTES:
                         return ""
                     buf = bytearray()
                     for chunk in r.iter_bytes():
                         buf.extend(chunk)
-                        if len(buf) > MAX_BYTES:
+                        if len(buf) > MAX_BYTES or time.monotonic() > deadline:
                             return ""
                     if not buf:
                         return ""
                     d.mkdir(parents=True, exist_ok=True)
+                    _prune_cache(d)
                     path = d / (stem + ext)
-                    tmp = path.with_suffix(ext + ".part")
-                    tmp.write_bytes(bytes(buf))
-                    os.replace(tmp, path)
+                    tmp = path.with_name(path.name + ".part")
+                    try:
+                        tmp.write_bytes(bytes(buf))
+                        os.replace(tmp, path)
+                    finally:
+                        tmp.unlink(missing_ok=True)
                     return str(path)
     except Exception:       # noqa: BLE001 - an image that cannot be fetched is simply not sent
         return ""
@@ -270,18 +339,20 @@ def _resolve(raw: str, brain_root: str) -> str:
     return ""
 
 
-def pick(text: str, brain_root: str, chat_id=None, doc_links: Iterable[str] = ()) -> Tuple[str, List[dict]]:
+def pick(text: str, brain_root: str, chat_id=None, doc_links: Iterable[str] = (),
+         turn_text: str = "") -> Tuple[str, List[dict]]:
     """Split the images the Agent asked to send out of `text`.
 
     Returns `(text without those images, [{"path": absolute path, "caption": alt text}])`. A web image is taken only
-    when `remote_allowed` (a tool of this chat's turn returned it, or `doc_links` holds it) and it downloads as an
-    image. Images that fail a gate and links that are not images are left in the text untouched. A web image is
+    when `remote_allowed` (a read tool of this chat's turn returned it, or `doc_links` holds it), no customer wrote it
+    (`turn_text` is the message being answered), and it downloads as an image. Images that fail a gate and links that are not images are left in the text untouched. A web image is
     fetched here, so call this off the event loop."""
     if not text or not brain_root or "![" not in text:
         return text or "", []
     files: List[dict] = []
     seen = set()
     docs = set(doc_links or ())
+    deadline = time.monotonic() + PICK_DEADLINE_S
 
     def repl(m):
         if m.group(1) != "!" or len(files) >= MAX_IMAGES:
@@ -289,7 +360,8 @@ def pick(text: str, brain_root: str, chat_id=None, doc_links: Iterable[str] = ()
         target = channel_context._md_link_target(m)
         if re.match(r"^https?://", str(target or "").strip(), re.IGNORECASE):
             url = str(target).strip()
-            path = fetch_remote(url) if remote_allowed(url, chat_id, docs) else ""
+            ok = remote_allowed(url, chat_id, docs) and not _customer_wrote(url, turn_text)
+            path = fetch_remote(url, deadline) if ok else ""
         else:
             path = _resolve(target, brain_root)
         if not path:

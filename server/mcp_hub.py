@@ -570,11 +570,11 @@ def _guard(ent, fn, mode):
                        "ok": not str(result).startswith("ERROR:"), "ms": int((time.time() - t0) * 1000),
                        "err": str(result)[:200] if str(result).startswith("ERROR:") else "",
                        "args_keys": sorted((args or {}).keys()), **team_gate.audit_fields()})
-        if not str(result).startswith("ERROR:"):
-            # Owner, 28/11/2026: a product photo a POS returns to a dedicated bot's turn may be sent to that chat
-            # (bot_images.py). Only links a tool really returned count, never one the customer typed.
+        if cls == "read" and not str(result).startswith("ERROR:"):
+            # Owner, 28/11/2026: a product photo a POS search returns to a dedicated bot's turn may be sent to that chat
+            # (bot_images.py). Reads only (a send echoes what it sent), never a link that was in the arguments.
             import bot_images
-            bot_images.note_tool_result(result)
+            bot_images.note_tool_result(result, args)
         # Lỗi từ dịch vụ trả về NGUYÊN VĂN tiếng Anh thì model phải tự đoán, và nó đoán sai:
         # vụ 2026-07-30 Google trả "The caller does not have permission", model kết luận là hub
         # của Javis chặn quyền rồi đi sửa nhầm tầng. GẮN THÊM chẩn đoán (không thay thế - giữ
