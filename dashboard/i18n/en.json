@@ -5272,6 +5272,7 @@
   "teams.pick.add_partial": "Added {done}. Not added: {failed}.",
   "teams.pick.err_network": "No network connection, so nothing was created. What you entered is kept; press again to retry.",
   "ws.tab_jobs": "Jobs",
+  "ws.rtab_jobs_need": "A job needs you",
   "ajobs.b.needs_you": "Needs you",
   "ajobs.b.running": "In progress",
   "ajobs.b.waiting": "Waiting",
