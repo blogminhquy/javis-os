@@ -33,7 +33,11 @@ Cùng một lần nối ở thẻ Facebook Messenger, Javis đăng được bài
 
 ## Số liệu bài viết (không bắt buộc)
 
-Muốn Javis đọc lượt tiếp cận, lượt lưu, lượt bấm của bài viết và của Trang thì tick **Đọc số liệu bài viết (lượt tiếp cận, lượt lưu)** trên form trước khi bấm Đăng nhập Facebook. Ô này xin thêm quyền `read_insights`; app Meta phải thêm quyền đó trước, nếu chưa thì Facebook từ chối cả lần đăng nhập, nên ô để trống sẵn. Trang đã nối thì bấm **Đổi token**, tick ô này và đăng nhập lại. Bảng kiểm tra có dòng **Đọc số liệu bài viết** báo token Trang đã có quyền chưa.
+Muốn Javis đọc lượt tiếp cận, lượt lưu, lượt bấm của bài viết và của Trang thì tick **Đọc số liệu bài viết (lượt tiếp cận, lượt lưu)** trên form trước khi bấm Đăng nhập Facebook. Ô này xin thêm quyền `read_insights`; app Meta phải thêm quyền đó trước, nếu chưa thì Facebook báo `Invalid Scopes: read_insights` và từ chối cả lần đăng nhập, nên ô để trống sẵn.
+
+Cách thêm quyền: vào developers.facebook.com, mở app của bạn, mục **Use cases**, chọn **Manage everything on your Page**, bấm **Customize**, tìm `read_insights` và bấm **Add**. Xong quay lại tick ô và đăng nhập Facebook.
+
+Trang đã nối thì bấm **Đổi token**, tick ô này và đăng nhập lại. Bảng kiểm tra có dòng **Đọc số liệu bài viết** báo token Trang đã có quyền chưa.
 
 ## Bình luận Fanpage (từ 0.434.0)
 

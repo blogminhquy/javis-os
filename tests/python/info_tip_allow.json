@@ -89,5 +89,6 @@
  "bpick.delete_msg": "confirm: inline delete-brain confirmation under the row the user chose to delete",
  "bpick.default_msg": "confirm: inline make-default confirmation under the row the user starred",
  "bpick.import_lead": "content: the upload view the user opened from the brain picker",
- "lv.act_q": "confirm: asked before letting Javis click and fill forms with a stored sign-in"
+ "lv.act_q": "confirm: asked before letting Javis click and fill forms with a stored sign-in",
+ "msc.waiting_scopes": "status: shown under the login button only after the person clicked Log in with Facebook with an extra permission ticked"
 }

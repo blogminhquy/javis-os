@@ -522,8 +522,11 @@
     if (win) {
       try { win.location.href = r.url; } catch (e) { win = null; }
     }
+    // A ticked Instagram or insights box asks for a permission the Meta app may lack, and Facebook then shows
+    // "Invalid Scopes" in its own tab, which never reaches us. Say what that means right here (owner, 28/11/2026).
+    var extra = (igBox && igBox.checked) || (insBox && insBox.checked);
     msg.innerHTML = esc(tw("msc.waiting")) + (win ? "" : ' <a href="' + esc(r.url) + '" target="_blank" rel="noopener">'
-      + esc(tw("msc.open_fb")) + "</a>");
+      + esc(tw("msc.open_fb")) + "</a>") + (extra ? "<br>" + esc(tw("msc.waiting_scopes")) : "");
     var until = Date.now() + 15 * 60 * 1000;
     while (Date.now() < until && form.isConnected) {
       await sleep(2000);
