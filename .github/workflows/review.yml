@@ -1,0 +1,118 @@
+name: Claude review
+
+# One Claude review per pull request, against REVIEW.md (tools/review_pr.py does the work).
+# A merge needs CI green AND this check green: the owner decided on 2026-11-28 that sessions which merge on
+# green CI must have the diff read first (docs/quy-uoc-dev.md, "Claude duyệt trước khi merge").
+#
+# Only `pull_request`: a push to a branch with no PR has nothing to review, and a second run per commit would
+# give two checks with the same name. `edited` re-runs the review after the author answers findings under
+# `## Review dismissals`; the title and description are read fresh from the API, so "Re-run jobs" also sees them.
+#
+# Secrets (one is enough, add it once under Settings, Secrets and variables, Actions):
+#   CLAUDE_CODE_OAUTH_TOKEN  from `claude setup-token` (Claude plan), or
+#   ANTHROPIC_API_KEY        an API key.
+# Optional repository variable REVIEW_MODEL picks the model (alias or id); empty uses the CLI default.
+# With no secret, or on a PR from a fork (GitHub hides secrets there), the check passes with a warning and the
+# person merging runs the review by hand, as docs/quy-uoc-dev.md says.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Claude review
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Decide whether to review
+        id: gate
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          IS_FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+          HAS_OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+        run: |
+          run=true
+          case "$HEAD_REF" in release-bot/*)
+            echo "Release PR from the bot: it only moves changelog fragments, nothing to review."; run=false;;
+          esac
+          if [ "$run" = true ] && [ "$IS_FORK" = "true" ]; then
+            echo "::warning::PR from a fork: GitHub hides secrets, so Claude cannot review it here. Review it by hand before merging (docs/quy-uoc-dev.md)."
+            run=false
+          fi
+          if [ "$run" = true ] && [ "$HAS_OAUTH" != "true" ] && [ "$HAS_KEY" != "true" ]; then
+            echo "::warning::No CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY secret, so this PR was not reviewed. Add one (see the top of .github/workflows/review.yml) or review by hand before merging."
+            run=false
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        if: steps.gate.outputs.run == 'true'
+        with:
+          python-version: "3.12"
+
+      # Pinned so a CLI release cannot change flags under us; bump it on purpose.
+      - name: Install Claude Code
+        if: steps.gate.outputs.run == 'true'
+        run: npm install -g @anthropic-ai/claude-code@2.1.332
+
+      - name: Review
+        id: review
+        if: steps.gate.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.base_ref }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          REVIEW_MODEL: ${{ vars.REVIEW_MODEL }}
+          PYTHONIOENCODING: utf-8
+        run: |
+          gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json title --jq .title > "$RUNNER_TEMP/title.txt"
+          gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json body --jq .body > "$RUNNER_TEMP/body.txt"
+          set +e
+          python tools/review_pr.py --base "origin/$BASE_REF" --title "$(cat "$RUNNER_TEMP/title.txt")" \
+            --body-file "$RUNNER_TEMP/body.txt" --out "$RUNNER_TEMP/review.md"
+          code=$?
+          set -e
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          cat "$RUNNER_TEMP/review.md" >> "$GITHUB_STEP_SUMMARY"
+
+      # One comment per PR, edited in place on every run, so the thread does not fill with old reviews.
+      - name: Post the review on the PR
+        if: steps.gate.outputs.run == 'true' && always() && steps.review.outputs.code != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" --paginate \
+                 --jq '.[] | select(.body | startswith("<!-- javis-claude-review -->")) | .id' | tail -n 1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@"$RUNNER_TEMP/review.md" > /dev/null
+          else
+            gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -F body=@"$RUNNER_TEMP/review.md" > /dev/null
+          fi
+
+      - name: Verdict
+        if: steps.gate.outputs.run == 'true'
+        env:
+          CODE: ${{ steps.review.outputs.code }}
+        run: |
+          case "$CODE" in
+            0) echo "No important finding.";;
+            1) echo "::error::Claude found important issues. Fix them or answer them under '## Review dismissals' in the PR description, then re-run."; exit 1;;
+            *) echo "::error::The reviewer failed, so the PR is not reviewed. Re-run this job."; exit 1;;
+          esac
