@@ -6,6 +6,16 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.658.6] - 2026-11-28
+### Cải thiện
+- **Đầu trang trên điện thoại chỉ còn nút ba gạch bên trái và chuông bên phải.** Nút "+" đã bỏ, hội thoại mới nằm ở nút "Hội thoại mới" trong ngăn hội thoại (trang Trò chuyện và Cộng sự).
+- **Thanh trang Trò chuyện bỏ nút "Thu nhỏ" về màn Javis.** Nút mục lục không còn dính vào chip thư mục project.
+- **Cột phải trang Cộng sự trên điện thoại gọn một hàng.** Lịch sử, Công việc, Cài đặt có icon, tab chưa chọn chỉ còn icon, nút X nằm cùng hàng.
+### Sửa lỗi
+- **Trang Cộng sự không còn kẹt "Đang tải cuộc trò chuyện…" với nút gửi bấm không ăn.** Danh sách trợ lý tải quá 16 giây thì hiện câu báo kèm nút Thử lại, và Thử lại xin bản mới thay vì chờ sau lượt đang treo.
+- **Bảng emoji trong Nhóm đóng khi chạm ra ngoài.** Trước đây nhấn giữ một tin mà emoji chưa hiện kịp thì bảng đứng yên, chạm đâu cũng không tắt.
+- **Nút ghim trong bảng thao tác chỉ ghi "Ghim"** và không còn xuống dòng.
+
 ## [0.658.5] - 2026-11-28
 ### Cải thiện
 - **Mỗi thay đổi được Claude đọc kỹ trước khi phát hành.** Trước đây CI xanh là merge, nay còn phải qua một lượt Claude soi lỗi, bảo mật và các luật của dự án, nên bản cập nhật tới máy bạn ít lỗi hơn.
