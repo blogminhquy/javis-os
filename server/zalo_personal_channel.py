@@ -50,6 +50,7 @@ from typing import Any, Dict, List, Optional
 import config as cfgmod
 import localefmt
 import conversations
+import zalo_e2ee
 import zalo_push
 import zalo_sent_ledger
 
@@ -494,6 +495,13 @@ def _reaction_meta(conn: dict, msg: dict, thread: str, sender_id: str) -> dict:
     }
 
 
+def _reply_readable(reply):
+    """A quoted message from an end-to-end encrypted chat carries the same ciphertext: show the sentence there too."""
+    if isinstance(reply, dict) and zalo_e2ee.is_ciphertext(reply.get("text")):
+        return dict(reply, text=zalo_e2ee.placeholder())
+    return reply
+
+
 def chuan_hoa_tin(conn: dict, msg: dict, ten: Dict[str, dict]) -> Optional[dict]:
     """Một tin của `zalo_get_messages` -> sự kiện chung của kho. None nếu không biết thread."""
     if not isinstance(msg, dict):
@@ -516,6 +524,10 @@ def chuan_hoa_tin(conn: dict, msg: dict, ten: Dict[str, dict]) -> Optional[dict]
     elif isinstance(text, dict):
         text = _lay(text, "text", "title", "description", "href", mac_dinh="")
     text = strip_mention_markup(str(text or ""))
+    # A chat with Zalo's end-to-end encryption on reaches us as ciphertext only (`zalo_e2ee`): say so instead.
+    e2ee = loai == "text" and zalo_e2ee.is_ciphertext(text)
+    if e2ee:
+        text = zalo_e2ee.placeholder()
     if loai != "text" and not text.strip():
         # The account's own photo (isSelf, from the owner's phone) is not "the customer sent".
         text = (f"[{conversations.KENH_NHAN[KENH]}: gửi {loai}]" if _la_cua_minh(msg)
@@ -550,10 +562,12 @@ def chuan_hoa_tin(conn: dict, msg: dict, ten: Dict[str, dict]) -> Optional[dict]
         "text": text,
         "external_message_id": str(_lay(msg, "id", "msgId", "message_id", mac_dinh="") or ""),
         "created_at": _ts(_lay(msg, "ts", "timestamp", "time", mac_dinh=0)),
-        "metadata": dict({k: msg.get(k) for k in ("replyTo", "mentions", "mediaUrl", "url", "fileName", "cliMsgId")
+        "metadata": dict({k: (_reply_readable(msg.get(k)) if k == "replyTo" else msg.get(k))
+                          for k in ("replyTo", "mentions", "mediaUrl", "url", "fileName", "cliMsgId")
                           if msg.get(k) not in (None, "")},
                          **({"reaction": reaction} if reaction is not None else {}),
                          **({"link_card": card} if card else {}),
+                         **({"e2ee": True} if e2ee else {}),
                          **({"chua_ro_loai": True} if _chua_ro_loai(msg, ten) else {}),
                          **({"member_join": vao_nhom} if vao_nhom is not None else {}),
                          **({"join_request": xin_vao} if xin_vao is not None else {}),
@@ -2209,6 +2223,10 @@ def _giao_cho_bot(conn: dict, ev: dict) -> None:
     cid = str(conn.get("id") or "")
     tb = _BOTS.get(cid)
     if not tb or ev.get("sender_type") != "customer":
+        return
+    if (ev.get("metadata") or {}).get("e2ee"):
+        # Encrypted end to end (`zalo_e2ee`): nobody here can read it, so the bot has nothing to answer. The inbox row
+        # shows the owner it arrived; the owner reads it in the Zalo app.
         return
     nhom = ev.get("chat_type") == "group"
     if (CHO_CHU_TRA_LOI > 0 and (not nhom or yield_explicit(cid))
