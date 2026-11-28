@@ -5285,6 +5285,7 @@
   "teams.pick.add_partial": "Đã thêm {done}. Chưa thêm được: {failed}.",
   "teams.pick.err_network": "Mất kết nối mạng nên chưa tạo được. Thông tin bạn nhập vẫn giữ nguyên, bấm lại để thử.",
   "ws.tab_jobs": "Công việc",
+  "ws.rtab_jobs_need": "Có việc cần bạn",
   "ajobs.b.needs_you": "Cần bạn",
   "ajobs.b.running": "Đang làm",
   "ajobs.b.waiting": "Đang chờ",

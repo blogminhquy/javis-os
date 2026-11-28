@@ -474,6 +474,26 @@
       if (dot) dot.hidden = !hasUnread(b.dataset.loai);
     });
   }
+  // 2026-11-28 (owner: "khung lịch sử hội thoại cũng hiện dấu chấm đỏ luôn, là lịch sử với công việc ấy"): the red dot of
+  // the partner row also shows on the right column tabs. History: another chat of this partner has unread replies (the
+  // chat on screen is left out by the server). Jobs: a job of this partner waits for you or failed ("need").
+  function rtabDotHtml(tab) {
+    var label = esc(t(tab === "viec" ? "ws.rtab_jobs_need" : "sess.unread"));
+    return '<span class="cs-proj-unread ws-rtab-dot" data-rtab-dot="' + tab + '" role="img" title="' + label +
+      '" aria-label="' + label + '" hidden></span>';
+  }
+  function rtabDots(x) {
+    var laAgent = S.loai === "agent", AJ = typeof window !== "undefined" ? window.JavisAgentJobs : null;
+    return {
+      lichsu: !!x && chuaDoc(x.slug) > 0,
+      viec: !!x && laAgent && !!(S.jc && AJ && AJ.statusOf) && AJ.statusOf(S.jc[x.slug]) === "need"
+    };
+  }
+  function drawRtabDots(el) {
+    if (!el) return;
+    var on = rtabDots(dangChon());
+    el.querySelectorAll("[data-rtab-dot]").forEach(function (d) { d.hidden = !on[d.getAttribute("data-rtab-dot")]; });
+  }
   function unreadHidden() {
     if (!S.q && !S.nhom) return false;
     var hien = {};
@@ -684,9 +704,9 @@
           // label sits in a span that CSS can hide, and the name stays in aria-label and title.
           '<div class="cside-tabs ws-rtabs">' +
             '<button type="button" class="cside-tab" data-rtab="lichsu" title="' + esc(t("ws.tab_history")) + '" aria-label="' + esc(t("ws.tab_history")) + '">' +
-              ic("history") + ' <span class="ws-rtab-lbl">' + esc(t("ws.tab_history")) + '</span></button>' +
+              ic("history") + ' <span class="ws-rtab-lbl">' + esc(t("ws.tab_history")) + '</span>' + rtabDotHtml("lichsu") + '</button>' +
             '<button type="button" class="cside-tab" data-rtab="viec" title="' + esc(t("ws.tab_jobs")) + '" aria-label="' + esc(t("ws.tab_jobs")) + '">' +
-              ic("list-todo") + ' <span class="ws-rtab-lbl">' + esc(t("ws.tab_jobs")) + '</span></button>' +
+              ic("list-todo") + ' <span class="ws-rtab-lbl">' + esc(t("ws.tab_jobs")) + '</span>' + rtabDotHtml("viec") + '</button>' +
             '<button type="button" class="cside-tab" data-rtab="cai" title="' + esc(t("ws.tab_settings")) + '" aria-label="' + esc(t("ws.tab_settings")) + '">' +
               ic("settings") + ' <span class="ws-rtab-lbl">' + esc(t("ws.tab_settings")) + '</span></button>' +
           '</div>' +
@@ -871,6 +891,7 @@
     el.querySelectorAll("[data-rpane]").forEach(function (p) { p.classList.toggle("on", p.dataset.rpane === S.tabPhai); });
     var jb = el.querySelector('[data-rtab="viec"]');
     if (jb) jb.hidden = S.loai !== "agent";
+    drawRtabDots(el);
     // Bản cũ mượn cây thư mục ở đây; trả lại phòng khi một phiên trước còn giữ nó.
     traCayThuMuc();
     if (S.tabPhai === "viec") ganCongViec(dangChon());
@@ -1197,6 +1218,7 @@
     var ds = loc(danhSach(), S.q, S.nhom, laTag, S.rs), chon = S.chon[S.loai];
     var host = el.querySelector("#wsList");
     drawFilterUnread(el);
+    drawRtabDots(el);
     var trong = (S.q || S.nhom || laTag) ? [] : docNhomTrong();
     // Not loaded yet (a tab switch or a toggle before the first list arrived): still loading, not "nothing here".
     if (!daTai && !ds.length) { anTheMini(); host.__wsHtml = null; host.innerHTML = dangTaiHtml("ws.loading_list"); return; }

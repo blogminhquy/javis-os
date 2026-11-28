@@ -216,6 +216,8 @@ check("phan tram", W.phanTram(W.tienDoMoi(4)) === 0 && W.phanTram(st) === 100);
     chuaDoc: () => 0, tinHtml: () => "", soTinHtml: () => "",
     // 2026-11-27: the dot on the filter button when it hides an unread row, drawn by a helper outside the cut.
     drawFilterUnread() {}, drawTabUnread() {}, tabDotHtml: () => "",
+    // 2026-11-28: the red dots on the History and Jobs tabs of the right column, helpers outside the cut too.
+    drawRtabDots() {}, rtabDotHtml: () => "",
     esc: (s) => String(s == null ? "" : s), t: (k) => k, ic: () => "<svg></svg>", avatar: () => "<i></i>",
     localStorage: { getItem: (k) => (k in kho ? kho[k] : null), setItem(k, v) { kho[k] = String(v); } },
     document: { getElementById: () => null },

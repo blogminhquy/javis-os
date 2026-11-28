@@ -2105,6 +2105,7 @@ body.has-rail .hud { margin-left: var(--rail-w); width: calc(100% - var(--rail-w
 .ws-rtabs .cside-tab { flex: 1 1 auto; padding: 7px 10px; gap: 6px; min-width: 0; font-size: 12.5px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-rtabs .cside-tab svg { flex: none; }
+.ws-rtabs .ws-rtab-dot { flex: none; }
 /* Cột phải co xuống 272px ở màn hẹp hơn: chia ba thì mỗi tab còn 76px, không đủ cho cả icon
    lẫn chữ ("Thư mục" bị cắt đuôi). Bỏ ICON chứ không cắt CHỮ - chữ mới là thứ nói tab nào là
    tab nào, icon chỉ là trang trí khi có chỗ. */
@@ -4496,6 +4497,9 @@ button.tm-gh-st { border: 0; background: none; padding: 0; font: inherit; font-s
 .ws-mini-tip-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .ws-mini-tip-ava { flex: none; display: inline-flex; width: 22px; height: 22px; }
 .ws-mini-tip-ava > * { width: 22px !important; height: 22px !important; font-size: 11px; }
+/* 2026-11-28 (owner: "khi hover vào thì không cần hiện số bên dưới khung hover nữa"): the card copies the avatar with
+   its unread pill, which landed under the card's bottom left corner. The strip's avatar already shows the count. */
+.ws-mini-tip .notification-badge, .ws-mini-tip .ws-av-unread, .ws-mini-tip .tm-unread { display: none !important; }
 .ws-mini-tip-head strong { flex: 1 1 auto; min-width: 0; font-size: 16px; font-weight: 700; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap; }
 .ws-mini-tip-time { flex: none; font-size: 12px; color: var(--text3); }
