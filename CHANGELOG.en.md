@@ -8,6 +8,10 @@ English entries start at 0.66.0. Every earlier release is described in the Vietn
 
 Format: each release is a `## [x.y.z] - date` block, with changes grouped under `### Added / Fixed / Improved / Security`.
 
+## [0.658.5] - 2026-11-28
+### Improved
+- **Every change is read by Claude before it ships.** A green CI used to be enough to merge; now a Claude review of bugs, security and the project rules must pass too, so fewer bugs reach your machine.
+
 ## [0.658.4] - 2026-11-27
 ### Fixed
 - **A tidier draft box in Conversations.** When you told Javis how to answer, the draft box repeated your whole instruction in its title, which took almost half a phone screen. The title now only says Javis followed your instruction; hover it to see the instruction.

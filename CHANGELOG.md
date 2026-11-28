@@ -6,6 +6,10 @@ Lịch sử phiên bản Javis OS. Bản mới nhất ở trên cùng. Xem ngay 
 
 Định dạng: mỗi phiên bản là một khối `## [x.y.z] - ngày`, bên dưới nhóm thay đổi theo `### Thêm mới / Sửa lỗi / Cải thiện / Bảo mật`.
 
+## [0.658.5] - 2026-11-28
+### Cải thiện
+- **Mỗi thay đổi được Claude đọc kỹ trước khi phát hành.** Trước đây CI xanh là merge, nay còn phải qua một lượt Claude soi lỗi, bảo mật và các luật của dự án, nên bản cập nhật tới máy bạn ít lỗi hơn.
+
 ## [0.658.4] - 2026-11-27
 ### Sửa lỗi
 - **Khung nháp ở Hội thoại gọn hơn.** Khi bạn ra lệnh cho Javis soạn câu trả lời, khung nháp trước đây chép lại nguyên văn lệnh ở dòng tiêu đề, trên điện thoại chiếm gần nửa màn hình. Giờ tiêu đề chỉ ghi "Javis soạn theo lệnh của bạn", lệnh gốc vẫn xem được khi rê chuột vào dòng này.
